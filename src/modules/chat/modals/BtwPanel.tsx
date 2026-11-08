@@ -10,8 +10,9 @@ import { Markdown } from '@/modules/chat/transcript/Markdown';
 import StreamingMarkdown from '@/modules/chat/transcript/StreamingMarkdown';
 import type { BtwRequest } from '@/shared/types';
 import { contextTransferApi } from '@/shared/api';
+import { SelectionNoteAction } from '@/modules/notes';
 
-type BtwPanelProps = { request: BtwRequest; active?: boolean; onMinimize?(): void; onClose(): void };
+type BtwPanelProps = { request: BtwRequest; active?: boolean; onMinimize?(): void; onClose(): void; onOpenNote?(id: string): void };
 
 const RESIZE_HANDLES = [
   { direction: 'n', className: 'inset-x-4 top-0 h-2 cursor-ns-resize' },
@@ -25,7 +26,7 @@ const RESIZE_HANDLES = [
 ] as const;
 
 /** ChatInterface keeps one panel per source session, showing the current session's window. */
-export function BtwPanel({ request, active = true, onMinimize, onClose }: BtwPanelProps) {
+export function BtwPanel({ request, active = true, onMinimize, onClose, onOpenNote }: BtwPanelProps) {
   const { t } = useTranslation('chat');
   const titleId = useId();
   // Presentation changes retain the request identity used by the native connection.
@@ -85,7 +86,7 @@ export function BtwPanel({ request, active = true, onMinimize, onClose }: BtwPan
     style={{ bottom: 'calc(var(--keyboard-height, 0px) + 12px + env(safe-area-inset-bottom, 0px))',
       height: 'min(34rem, 72dvh)', maxHeight: 'calc(100dvh - var(--keyboard-height, 0px) - 2rem)',
       ...(bounds ? { ...bounds, right: 'auto', bottom: 'auto', maxHeight: 'none' } : {}) }}
-    onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); } }}>
+    onKeyDown={event => { if (event.key === 'Escape' && !document.querySelector('[data-note-toolbar]')) { event.preventDefault(); event.stopPropagation(); close(); } }}>
     <header className="flex shrink-0 items-center gap-2 border-b border-border/60 px-4 py-3">
       <MessageSquare aria-hidden className="h-4 w-4 text-primary/80" />
       <h2 id={titleId} className="text-sm font-medium">{t('btw.title')}</h2>
@@ -105,7 +106,7 @@ export function BtwPanel({ request, active = true, onMinimize, onClose }: BtwPan
     <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
       onScroll={event => { const node = event.currentTarget; followRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48; }}>
       {messages.length === 0 && <p className="text-sm leading-relaxed text-muted-foreground">{ready ? t('btw.empty') : t('btw.connecting')}</p>}
-      {messages.map(message => <div key={message.id} data-btw-message={message.role} className={message.role === 'user'
+      {messages.map(message => <div key={message.id} data-btw-message={message.role} data-note-message={message.role === 'assistant' ? message.id : undefined} className={message.role === 'user'
         ? 'ml-8 break-words rounded-xl bg-muted/60 px-3 py-2 text-sm'
         : 'prose prose-sm max-w-none break-words font-serif text-foreground dark:prose-invert'}>
         {message.role === 'assistant'
@@ -147,5 +148,6 @@ export function BtwPanel({ request, active = true, onMinimize, onClose }: BtwPan
       className={`absolute z-10 touch-none select-none bg-transparent p-0 focus-visible:outline focus-visible:outline-1 focus-visible:outline-primary/50 ${className}`}
       onPointerDown={event => startResize(event, direction)}
       onKeyDown={event => { if (resizeWithKeyboard(event.key, direction, event.shiftKey)) { event.preventDefault(); event.stopPropagation(); } }} />)}
+    {onOpenNote && <SelectionNoteAction root={scrollRef} sessionId={request.sessionId} conversationId={request.key} sourceModel={request.model} onOpenNote={onOpenNote} />}
   </section></MarkdownWorkspaceContext.Provider>, document.body);
 }

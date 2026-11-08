@@ -7,7 +7,7 @@ import '@/modules/i18n';
 import ChatInterface from '@/modules/chat/ChatInterface';
 import { useMarkdownWorkspaceProjectId } from '@/modules/chat/context/MarkdownWorkspaceContext';
 import { BtwPanel } from '@/modules/chat/modals/BtwPanel';
-import { contextTransferApi } from '@/shared/api';
+import { contextTransferApi, notesApi } from '@/shared/api';
 import type { BtwRequest } from '@/shared/types';
 
 vi.mock('@/modules/chat/transcript/Markdown', () => ({
@@ -70,6 +70,22 @@ beforeEach(() => {
   });
 });
 afterEach(() => { cleanup();vi.useRealTimers();vi.unstubAllGlobals(); });
+
+test('selected BTW output saves with its parent and side-window provenance, then opens the note', async () => {
+  const save=vi.spyOn(notesApi,'create').mockResolvedValue({id:'saved-side-note'} as never);const open=vi.fn();
+  Range.prototype.getBoundingClientRect=()=>({x:10,y:10,left:10,right:200,top:10,bottom:40,width:190,height:30,toJSON(){}});
+  const view=render(<BtwPanel request={REQUEST} onOpenNote={open} onClose={()=>{}}/>);
+  try {
+    const socket=instances[0];act(()=>{socket.open();socket.frame({kind:'btw_ready'});socket.frame({kind:'btw_message',id:'answer',role:'assistant',content:'A side discussion conclusion'});});
+    act(()=>{const range=document.createRange();range.selectNodeContents(document.querySelector('[data-note-message="answer"]')!);const selection=window.getSelection()!;selection.removeAllRanges();selection.addRange(range);fireEvent(document,new Event('selectionchange'));});
+    fireEvent.click(view.getByRole('button',{name:'保存为笔记'}));
+    fireEvent.click(await view.findByRole('button',{name:'已保存 · 查看笔记'}));
+    assert.equal(save.mock.calls[0][0].content,'A side discussion conclusion');
+    assert.equal(save.mock.calls[0][0].sourceSessionId,'parent');assert.equal(save.mock.calls[0][0].sourceConversationId,'window');
+    assert.equal(save.mock.calls[0][0].sourceKind,'btw');assert.equal(save.mock.calls[0][0].sourceModel,REQUEST.model);
+    assert.deepEqual(open.mock.calls,[['saved-side-note']]);
+  } finally {save.mockRestore();window.getSelection()?.removeAllRanges();}
+});
 
 test('minimizing hides the portal while its native request, reply, draft and size stay alive', () => {
   const onMinimize = vi.fn();

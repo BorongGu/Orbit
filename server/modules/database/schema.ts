@@ -368,4 +368,19 @@ CREATE TABLE IF NOT EXISTS context_requests (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_context_request_active_source ON context_requests(source_session_id)
   WHERE status IN ('queued','preparing','analyzing','ready','delivering');
+
+CREATE TABLE IF NOT EXISTS output_notes (
+  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  request_id TEXT NOT NULL, original_input TEXT NOT NULL, payload TEXT NOT NULL,
+  title TEXT NOT NULL, content TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(user_id, request_id)
+);
+CREATE INDEX IF NOT EXISTS idx_output_notes_user ON output_notes(user_id, created_at);
+CREATE TABLE IF NOT EXISTS note_session_contexts (
+  session_id TEXT PRIMARY KEY REFERENCES sessions(session_id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  note_id TEXT REFERENCES output_notes(id) ON DELETE SET NULL,
+  request_id TEXT NOT NULL, original_input TEXT NOT NULL, payload TEXT NOT NULL, prompt TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', error TEXT, UNIQUE(user_id, request_id)
+);
 `;

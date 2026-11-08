@@ -36,6 +36,7 @@ import { CodexGoalPanel } from '@/modules/chat/composer/CodexGoalPanel';
 import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
 import { BtwPanel } from '@/modules/chat/modals/BtwPanel';
 import { ContextTransferDialog } from '@/modules/context-transfer';
+import { NoteContextBanner, NotesDialog, SelectionNoteAction } from '@/modules/notes';
 import type { ContextTransferCommand } from '@/shared/types';
 import '@/modules/chat/reading-mode.css';
 
@@ -241,6 +242,8 @@ function ChatInterface({
 
   // Capture the source at command invocation so navigation cannot retarget an open handoff dialog.
   const [contextTransferCommand, setContextTransferCommand] = useState<ContextTransferCommand | null>(null);
+  // A saved selection opens the library over this transcript without losing its reading position.
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const openContextTransfer = useCallback((command: 'context' | 'handoff', instruction: string) => {
     const sessionId = selectedSession?.id || currentSessionId;
     if (!sessionId) { addMessage({ type: 'error', content: '先在当前会话完成一轮对话，即可传递上下文。', timestamp: new Date() }); return; }
@@ -397,11 +400,11 @@ function ChatInterface({
     }
 
     const handleGlobalEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented || contextTransferCommand || reading.suppressTaskEscape()) {
+      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented || contextTransferCommand || openNoteId || reading.suppressTaskEscape()) {
         return;
       }
 
-      if (event.target instanceof Element && event.target.closest('[data-question-panel], [data-btw-panel]')) return;
+      if (document.querySelector('[data-note-toolbar]') || event.target instanceof Element && event.target.closest('[data-question-panel], [data-btw-panel]')) return;
       event.preventDefault();
       handleAbortSession();
     };
@@ -410,7 +413,7 @@ function ChatInterface({
     return () => {
       document.removeEventListener('keydown', handleGlobalEscape, { capture: true });
     };
-  }, [canAbortSession, handleAbortSession, reading.suppressTaskEscape, contextTransferCommand]);
+  }, [canAbortSession, handleAbortSession, reading.suppressTaskEscape, contextTransferCommand, openNoteId]);
 
   useEffect(() => {
     return () => {
@@ -589,6 +592,7 @@ function ChatInterface({
           )}
 
           <div hidden={reading.isReading} className={reading.isReading ? 'hidden' : undefined} data-chat-composer>
+          <NoteContextBanner sessionId={selectedSession?.id || currentSessionId || null} busy={isProcessing} />
           {consoleOnly ? <div className="border-t border-border p-3">
             <PermissionRequestsBanner pendingPermissionRequests={pendingPermissionRequests} handlePermissionDecision={handlePermissionDecision} handleGrantToolPermission={handleGrantToolPermission} />
             <ActivityIndicator activity={sessionActivity} onAbort={handleAbortSession} />
@@ -678,10 +682,13 @@ function ChatInterface({
       </div>
 
       {btwRequests.map(request => <BtwPanel key={request.key} request={request}
+        onOpenNote={setOpenNoteId}
         active={isActive && !reading.isReading && request.sessionId === (selectedSession?.id || currentSessionId) && request.provider === provider}
         onMinimize={() => setBtwMinimized(request.key, true)}
         onClose={() => closeBtw(request.key)} />)}
       {contextTransferCommand && <ContextTransferDialog source={contextTransferCommand} onClose={() => setContextTransferCommand(null)} onNavigate={id => onNavigateToSession?.(id)} onSourceActivity={observeContextPreparation} />}
+      {isActive && <SelectionNoteAction root={readingSurfaceRef} sessionId={selectedSession?.id || currentSessionId || null} onOpenNote={setOpenNoteId} />}
+      {openNoteId && <NotesDialog noteId={openNoteId} onClose={() => setOpenNoteId(null)} onNavigate={onNavigateToSession} />}
       <CommandResultModal
         payload={commandModalPayload}
         onClose={closeCommandModal}

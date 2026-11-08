@@ -89,6 +89,8 @@ export function useChatReadingMode(
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || !suppressTaskEscape()) return;
+      // Selection and note overlays handle Escape first while the reading surface stays open.
+      if (document.querySelector('[data-notes-dialog], [data-note-toolbar]')) return;
       event.preventDefault();
       event.stopPropagation();
       if (active.current) void exit();

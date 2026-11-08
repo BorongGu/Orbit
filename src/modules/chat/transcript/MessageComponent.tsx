@@ -335,6 +335,8 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   </Reasoning>
                 )}
 
+                <div data-note-message={!isExporting && message.type === 'assistant' ? message.id || message.transcriptAnchorId : undefined}
+                  data-note-anchor={message.transcriptAnchorId} data-note-model={message.model}>
                 {(() => {
                   const content = formattedMessageContent;
 
@@ -383,6 +385,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     </div>
                   );
                 })()}
+                </div>
               </div>
             )}
 

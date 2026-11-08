@@ -472,3 +472,53 @@ export function createClientRequestId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 // ---------------------------
+
+// ---------------------------
+//----------------- SELECTED OUTPUT TEXT ------------
+/** Convert a selected DOM fragment into readable paragraphs, lists and table cells. */
+function serializeSelectionNode(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const value = node.textContent ?? '';
+    // Rehype inserts formatting newlines between blocks; those blocks already supply their boundaries.
+    if (!value.trim() && /[\r\n]/.test(value) && !node.parentElement?.closest('pre, code')) {
+      const blocks = 'div, p, pre, blockquote, h1, h2, h3, h4, h5, h6, table, thead, tbody, tr, th, td, ul, ol, li';
+      if ([node.previousSibling, node.nextSibling].some(sibling => sibling instanceof Element && sibling.matches(blocks))) return '';
+    }
+    return value;
+  }
+  if (!(node instanceof Element) && !(node instanceof DocumentFragment)) return '';
+  const content = Array.from(node.childNodes, serializeSelectionNode).join('');
+  if (!(node instanceof Element)) return content;
+  if (node.tagName === 'BR') return '\n';
+  if (node.matches('td, th')) return content.trimEnd() + '\t';
+  if (node.tagName === 'TR') return content.trimEnd() + '\n';
+  if (node.tagName === 'LI') return '- ' + content.trim() + '\n';
+  if (node.matches('div, p, section, article, blockquote, pre, h1, h2, h3, h4, h5, h6, ul, ol, table')) {
+    return content.replace(/\n+$/, '') + '\n\n';
+  }
+  return content;
+}
+
+/** Chat copy and Notes serialize a selection with paragraph boundaries and TeX source, preserving the live DOM range. */
+export function serializeSelectionRange(selectedRange: Range): { text: string; html: string } {
+  const range = selectedRange.cloneRange();
+  for (const math of Array.from(range.startContainer.ownerDocument!.querySelectorAll<HTMLElement>('.katex'))) {
+    if (!range.intersectsNode(math)) continue;
+    const whole = math.closest('.katex-display') ?? math;
+    if (whole.contains(range.startContainer)) range.setStartBefore(whole);
+    if (whole.contains(range.endContainer)) range.setEndAfter(whole);
+  }
+  const fragment = range.cloneContents();
+  for (const math of fragment.querySelectorAll('.katex')) {
+    const source = math.querySelector('annotation[encoding="application/x-tex"]')?.textContent;
+    if (source === undefined || source === null) continue;
+    const display = math.closest('.katex-display');
+    if (display) {
+      const block = document.createElement('div');block.textContent = `$$\n${source}\n$$`;display.replaceWith(block);
+    } else math.replaceWith(document.createTextNode(`$${source}$`));
+  }
+  fragment.querySelectorAll('button, script, style, [aria-hidden="true"], .sr-only').forEach(node => node.remove());
+  const text = serializeSelectionNode(fragment).replace(/^\n+|\n+$/g, '');
+  const wrapper = document.createElement('div');wrapper.append(fragment);
+  return { text, html: wrapper.innerHTML };
+}

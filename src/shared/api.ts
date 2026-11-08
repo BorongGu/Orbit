@@ -8,6 +8,7 @@ import { readVoiceConfig, voiceConfigHeaders } from '@/shared/voiceConfig';
 import type { GuestChatBootstrap, GuestChatSnapshot, GuestChatSummary } from '@/shared/types';
 import type { OrbitGroup, OrbitGroupCreateInput, OrbitGroupMessage, OrbitGroupPostInput, OrbitGroupSnapshot } from '@/shared/types';
 import type { ContextTransferInput, ContextTransferRequest } from '@/shared/types';
+import type { NoteSelectionInput, NoteSessionContext, OutputNote } from '@/shared/types';
 
 async function guestRequest<T>(url: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
   const controller = new AbortController();
@@ -153,6 +154,17 @@ async function moduleRequest<T>(endpoint: string, method = 'GET', body?: unknown
   return result.data as T;
 }
 const groupRequest = <T>(endpoint: string, method = 'GET', body?: unknown, signal?: AbortSignal) => moduleRequest<T>(`/api/groups${endpoint}`, method, body, signal);
+
+/** Notes stores selected output and seeds ordinary conversations without invoking a model. */
+export const notesApi = {
+  list: (q = '', offset = 0, signal?: AbortSignal) => moduleRequest<{ notes: OutputNote[]; hasMore: boolean; nextOffset: number }>(`/api/notes?q=${encodeURIComponent(q)}&offset=${offset}`, 'GET', undefined, signal),
+  read: (id: string, signal?: AbortSignal) => moduleRequest<OutputNote>(`/api/notes/${encodeURIComponent(id)}`, 'GET', undefined, signal),
+  create: (input: NoteSelectionInput) => moduleRequest<OutputNote>('/api/notes', 'POST', input),
+  update: (id: string, input: { title: string; content: string; revision: number }) => moduleRequest<OutputNote>(`/api/notes/${encodeURIComponent(id)}`, 'PATCH', input),
+  remove: (id: string) => moduleRequest(`/api/notes/${encodeURIComponent(id)}`, 'DELETE'),
+  createSession: (id: string, input: { requestId: string; provider?: string; model?: string; effort?: string; projectPath?: string }) => moduleRequest<{ sessionId: string }>(`/api/notes/${encodeURIComponent(id)}/sessions`, 'POST', input),
+  sessionContext: (sessionId: string, signal?: AbortSignal) => moduleRequest<NoteSessionContext | null>(`/api/notes/session-context/${encodeURIComponent(sessionId)}`, 'GET', undefined, signal),
+};
 
 /** The context-transfer dialog uses persisted requests so preparation continues across navigation and reloads. */
 export const contextTransferApi = {

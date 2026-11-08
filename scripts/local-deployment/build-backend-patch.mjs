@@ -7,6 +7,10 @@ import ts from 'typescript';
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const output = process.env.CLOUDCLI_PATCH_DIR || path.join(os.homedir(), '.config/cloudcli/backend-patch');
 const files = [
+  'server/modules/notes/index.ts',
+  'server/modules/notes/notes.routes.ts',
+  'server/modules/notes/notes.service.ts',
+  'server/modules/database/repositories/notes.db.ts',
   'server/modules/database/repositories/context-requests.db.ts',
   'server/modules/context-transfer/services/context-request.service.ts',
   'server/modules/database/repositories/context-transfer.db.ts',

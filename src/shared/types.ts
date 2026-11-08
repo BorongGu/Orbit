@@ -18,6 +18,21 @@ export type LazyRowObserver = {
 };
 
 // ---------------------------
+//----------------- SAVED OUTPUT NOTES ------------
+/** Saved output excerpt with immutable provenance and editable working note content. */
+export type OutputNote = {
+  id: string; title: string; content: string; excerpt: string; sourceSessionId: string; sourceMessageId: string;
+  sourceAnchorId: string | null; sourceTitle: string; sourceProvider: LLMProvider; sourceModel: string | null;
+  /** Distinguishes main replies from temporary BTW replies associated with the source session. */
+  sourceKind: 'session' | 'btw'; sourceConversationId: string | null;
+  sourceProjectPath: string | null; createdAt: string; updatedAt: string; revision: number;
+};
+/** Selection captured before a floating toolbar click or a source-session navigation changes the DOM. */
+export type NoteSelectionInput = { requestId: string; content: string; sourceSessionId: string; sourceMessageId: string; sourceAnchorId?: string; sourceModel?: string; sourceKind?: 'session' | 'btw'; sourceConversationId?: string };
+/** Frozen note context displayed in a newly seeded conversation. */
+export type NoteSessionContext = { sessionId: string; note: OutputNote; status: 'pending' | 'submitting' | 'delivered' | 'uncertain'; error: string | null };
+
+// ---------------------------
 //----------------- CONTEXT TRANSFER COMMANDS ------------
 /** Captured source when the user opens /context or /handoff, stable across later session navigation. */
 export type ContextTransferCommand = {

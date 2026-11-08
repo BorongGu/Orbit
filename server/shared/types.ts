@@ -22,6 +22,22 @@ export type ApiSuccessShape<TData = unknown> = {
 export type AnyRecord = Record<string, any>;
 
 // ---------------------------
+//----------------- SAVED OUTPUT NOTES ------------
+/** User-owned note captured from rendered agent output. The excerpt and source metadata remain immutable when its working content is edited. */
+export type OutputNote = {
+  id: string; title: string; content: string; excerpt: string; sourceSessionId: string; sourceMessageId: string;
+  sourceAnchorId: string | null; sourceTitle: string; sourceProvider: LLMProvider; sourceModel: string | null;
+  /** BTW excerpts retain their temporary conversation id and use sourceSessionId for the parent conversation. */
+  sourceKind: 'session' | 'btw'; sourceConversationId: string | null;
+  sourceProjectPath: string | null; createdAt: string; updatedAt: string; revision: number;
+};
+
+/** Frozen note attached to a newly created session; consumption is independent of later note edits or deletion. */
+export type NoteSessionContext = {
+  sessionId: string; note: OutputNote; status: 'pending' | 'submitting' | 'delivered' | 'uncertain'; error: string | null;
+};
+
+// ---------------------------
 //----------------- SESSION CONTEXT TRANSFER ------------
 /** Immutable evidence from one session's normalized transcript; refs belong to its snapshot. */
 export type ContextRecord = {

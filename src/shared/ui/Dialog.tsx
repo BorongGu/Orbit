@@ -92,6 +92,8 @@ export const DialogTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTM
 DialogTrigger.displayName = 'DialogTrigger';
 
 type DialogContentProps = {
+  /** Notes uses the native fullscreen surface so its dialog stays visible while reading. */
+  portalContainer?: Element;
   onEscapeKeyDown?: () => void;
   onPointerDownOutside?: () => void;
   wrapperClassName?: string;
@@ -102,7 +104,7 @@ const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled
 
 /** Focus-trapped panel of Dialog, used by the chat, command-palette, sidebar and skills modules. */
 export const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
-  ({ className, children, onEscapeKeyDown, onPointerDownOutside, wrapperClassName, animationClassName, ...props }, ref) => {
+  ({ className, children, onEscapeKeyDown, onPointerDownOutside, wrapperClassName, animationClassName, portalContainer, ...props }, ref) => {
     const { open, onOpenChange, triggerRef } = useDialog();
     const contentRef = React.useRef<HTMLDivElement | null>(null);
     const previousFocusRef = React.useRef<HTMLElement | null>(null);
@@ -206,7 +208,7 @@ export const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps
           {children}
         </div>
       </div>,
-      document.body
+      portalContainer || document.body
     );
   }
 );

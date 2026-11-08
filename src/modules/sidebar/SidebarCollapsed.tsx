@@ -1,4 +1,4 @@
-import { Settings, Bug, AlertTriangle, Users } from 'lucide-react';
+import { Settings, Bug, AlertTriangle, Users, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { TFunction } from 'i18next';
 import { OrbitMark } from '@/shared/ui';
@@ -42,6 +42,7 @@ export default function SidebarCollapsed({
 
       <div className="nav-divider my-1 w-6" />
       <Link to="/groups" aria-label="Groups" title="Groups" className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent/80 hover:text-foreground"><Users className="h-4 w-4" /></Link>
+      <Link to="/notes" aria-label="笔记" title="笔记" className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent/80 hover:text-foreground"><BookOpen className="h-4 w-4" /></Link>
 
       {/* Settings */}
       <button

@@ -1,7 +1,7 @@
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
-import { contextTransferDb, groupsDb } from '@/modules/database/index.js';
+import { contextTransferDb, getConnection, groupsDb, notesDb } from '@/modules/database/index.js';
 import { GROUP_MODE_SYSTEM_PROMPT } from '@/shared/index.js';
 import type { IProvider } from '@/shared/interfaces.js';
 import type {
@@ -30,8 +30,13 @@ type ProviderRuntimeServiceDependencies = {
 };
 
 const defaultDependencies: ProviderRuntimeServiceDependencies = {
-  claimContext: sessionId => contextTransferDb.claim(sessionId),
-  settleContext: (id, status, error) => contextTransferDb.settle(id, status, error),
+  claimContext: sessionId => getConnection().transaction(() => [
+    ...contextTransferDb.claim(sessionId), ...notesDb.claimContext(sessionId).map(row => ({ ...row,id: `note:${row.id}` })),
+  ])(),
+  settleContext: (id, status, error) => {
+    if (id.startsWith('note:')) notesDb.settleContext(id.slice(5),status === 'delivered' ? 'delivered' : 'uncertain',error);
+    else contextTransferDb.settle(id,status,error);
+  },
   groupInstructions: sessionId => groupsDb.membership(sessionId) ? GROUP_MODE_SYSTEM_PROMPT : undefined,
   listProviders: () => providerRegistry.listProviders(),
   resolveProvider: (provider) => providerRegistry.resolveProvider(provider),
