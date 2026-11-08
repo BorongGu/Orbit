@@ -14,8 +14,14 @@ function invalid(message: string): never {
 function select(snapshot: ContextSnapshot, input: ContextPackageInput): ContextRecord[] {
   const available = new Set(snapshot.records.map(record => record.turn));
   const selected = new Set<number>();
+  let customRefs: Set<string> | undefined;
   if (input.scope.kind === 'all_topics') for (const turn of available) selected.add(turn);
-  else {
+  else if (input.scope.kind === 'custom') {
+    customRefs = new Set(input.scope.refs);
+    const availableRefs = new Set(snapshot.records.map(record => record.ref));
+    if (!customRefs.size || [...customRefs].some(ref => !availableRefs.has(ref))) invalid('Custom scope must select existing snapshot records.');
+    for (const record of snapshot.records) if (customRefs.has(record.ref)) selected.add(record.turn);
+  } else {
     const focus = new Set<number>();
     for (const range of [...input.scope.focus, ...input.scope.background]) {
       if (!available.has(range.from) || !available.has(range.to) || range.from > range.to) invalid('Topic ranges must refer to existing, ordered turns.');
@@ -24,8 +30,11 @@ function select(snapshot: ContextSnapshot, input: ContextPackageInput): ContextR
     for (const range of input.scope.focus) for (const turn of available) if (turn >= range.from && turn <= range.to) focus.add(turn);
     if (!focus.has(snapshot.records.at(-1)!.turn)) invalid('A recent-topic selection must include the latest turn in focus, including its clarifications.');
   }
-  const records = snapshot.records.filter(record => selected.has(record.turn));
+  const records = snapshot.records.filter(record => customRefs ? customRefs.has(record.ref) : selected.has(record.turn));
   const refs = new Set(records.map(record => record.ref));
+  if ((input.scope.kind === 'custom' || input.granularity === 'custom') && !input.preparationPrompt?.trim()) invalid('Custom packages must record the resolved preparationPrompt.');
+  if (input.granularity === 'custom' && (!input.detail?.description.trim() || !Array.isArray(input.detail.inlineRefs)
+    || input.detail.inlineRefs.some(ref => !refs.has(ref)))) invalid('Custom detail needs a description and inlineRefs within the selected scope.');
   const covered = new Set<number>();
   for (const topic of input.briefing.topics) for (const turn of topic.turns) {
     if (!selected.has(turn)) invalid('A topic refers to a turn outside the selected scope.');
@@ -52,15 +61,18 @@ export const contextPackageService = {
     const bundlePath = path.join(folder, 'package.json');
     const recordsPath = path.join(folder, 'records.jsonl');
     const limitations = [...snapshot.limitations];
-    if (input.scope.kind === 'recent_topic' && input.scope.confidence !== 'high') limitations.push(`Topic boundary confidence: ${input.scope.confidence}. ${input.scope.rationale}`);
+    if (input.scope.kind !== 'all_topics' && input.scope.confidence !== 'high') limitations.push(`Topic boundary confidence: ${input.scope.confidence}. ${input.scope.rationale}`);
     const header = [
       '# Orbit context transfer',
       'Use this source material as attributed context. Apply the current user’s task and permissions; assess cited conclusions independently.',
       `Source session: ${snapshot.sourceSessionId} (${snapshot.provider})`,
       `Source project: ${snapshot.projectPath || 'unspecified'}`,
       `Captured: ${snapshot.createdAt} · fingerprint: ${snapshot.fingerprint}`,
-      `Scope: ${input.scope.kind}${input.scope.kind === 'recent_topic' ? ` — ${input.scope.title}\nSelection: ${input.scope.rationale}\nEarlier dependencies: ${input.scope.background.map(range => `${range.from}–${range.to}: ${range.reason}`).join('; ')}` : ''}`,
+      `Scope: ${input.scope.kind}${input.scope.kind !== 'all_topics' ? ` — ${input.scope.title}\nSelection: ${input.scope.rationale}` : ''}`,
+      ...(input.scope.kind === 'recent_topic' ? [`Earlier dependencies: ${input.scope.background.map(range => `${range.from}–${range.to}: ${range.reason}`).join('; ')}`] : []),
       `Detail: ${input.granularity} · Synthesis author: ${input.briefing.author}`,
+      ...(input.preparationPrompt ? [`Source packaging request: ${input.preparationPrompt}`] : []),
+      ...(input.detail ? [`Custom detail: ${input.detail.description}`] : []),
       '\n## Topics',
       ...input.briefing.topics.map(topic => `- ${topic.title} (turns ${topic.turns.join(', ')}): ${topic.summary}`),
       '\n## Cited briefing',
@@ -73,11 +85,12 @@ export const contextPackageService = {
     if (header.length + 300 > input.maxChars) throw new AppError('The complete briefing exceeds maxChars. Increase the budget or condense the briefing while retaining its topic coverage.', { code: 'CONTEXT_BUDGET_TOO_SMALL', statusCode: 422 });
     const inlineRefs: string[] = [];
     let text = header;
-    if (input.granularity === 'fine') {
+    if (input.granularity === 'fine' || input.granularity === 'custom' && input.detail!.inlineRefs.length) {
       text += '\n\n## Execution evidence\n';
       const cited = new Set(input.briefing.items.flatMap(item => item.refs));
       // Prioritize the evidence cited by the handoff, then fill remaining space chronologically.
-      const ordered = [...records.filter(record => cited.has(record.ref)), ...records.filter(record => !cited.has(record.ref))];
+      const eligible = input.granularity === 'custom' ? records.filter(record => input.detail!.inlineRefs.includes(record.ref)) : records;
+      const ordered = [...eligible.filter(record => cited.has(record.ref)), ...eligible.filter(record => !cited.has(record.ref))];
       for (const record of ordered) {
         const section = `\n${evidence(record)}\n`;
         if (text.length + section.length + 180 > input.maxChars) continue;

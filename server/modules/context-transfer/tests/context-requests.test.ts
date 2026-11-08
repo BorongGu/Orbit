@@ -10,8 +10,8 @@ import test from 'node:test';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 
-import { closeConnection, contextRequestsDb, getConnection, initializeDatabase, sessionsDb, userDb } from '@/modules/database/index.js';
-import { contextBridgeRoutes } from '@/modules/context-transfer/context-transfer.routes.js';
+import { apiKeysDb, closeConnection, contextRequestsDb, getConnection, initializeDatabase, sessionsDb, userDb } from '@/modules/database/index.js';
+import { contextBridgeRoutes, contextTransferRoutes } from '@/modules/context-transfer/context-transfer.routes.js';
 import { createContextRequestService } from '@/modules/context-transfer/services/context-request.service.js';
 import { createContextSnapshotService } from '@/modules/context-transfer/services/context-snapshot.service.js';
 import { AppError } from '@/shared/index.js';
@@ -38,7 +38,7 @@ async function fixture(run: (state: { userId: number; folder: string; base: stri
   sessionsDb.createAppSession('source', provider, folder, 'Cache source'); sessionsDb.assignProviderSessionId('source', 'native-source');
   sessionsDb.createAppSession('target', 'codex', folder, 'Existing target');
   const snapshots = createContextSnapshotService({ running: () => false, history: async () => ({ messages: history, total: history.length, hasMore: false, offset: 0, limit: null }) });
-  const app = express().use(express.json()).use('/context-bridge', contextBridgeRoutes);
+  const app = express().use(express.json()).use('/context-bridge', contextBridgeRoutes).use('/api/context', contextTransferRoutes);
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => res.status(error instanceof AppError ? error.statusCode : 500).json({ success: false, error: { message: error instanceof Error ? error.message : String(error) } }));
   const server = app.listen(0, '127.0.0.1'); await once(server, 'listening');
   process.env.HOST = '127.0.0.1'; process.env.SERVER_PORT = String((server.address() as AddressInfo).port);
@@ -126,4 +126,32 @@ test('subsequent snapshots retain the substantive topic and skip earlier transfe
   const service = createContextSnapshotService({ running: () => false, history: async () => ({ messages, total: messages.length, hasMore: false, offset: 0, limit: null }) });
   const snapshot = await service.prepare(userId, 'source');
   assert.equal(snapshot.records.length, 6); assert.equal(snapshot.records.at(-1)?.turn, 3); assert.equal(snapshot.records.some(row => row.content.includes('Internal preparation')), false);
+}));
+
+for (const preparationPrompt of [undefined, '将我们讨论的加密约束打包，只总结制作 PPT 必要的内容。']) test(`custom requests ${preparationPrompt ? 'honor an explicit source prompt' : 'reuse the source conversation packaging intent'}`, async () => fixture(async ({ userId, folder, base, prepare }) => {
+  const service = createContextRequestService({ running: async () => new Set(), prepare, sourceTurn: scripted(async (_owner, request, prompt) => {
+    if (preparationPrompt) assert.ok(prompt.includes(preparationPrompt));
+    else assert.match(prompt, /latest explicit user request about packaging/);
+    assert.match(prompt, /selection can omit the latest turn/); assert.match(prompt, /summary-only package/);
+    const current = service.read(userId, request.id);
+    const body: ContextPackageInput = { ...packageInput(current), scope: { kind: 'custom', title: 'PPT', rationale: 'Only this earlier constraint supports the presentation.', confidence: 'high', refs: ['r1'] },
+      granularity: 'custom', preparationPrompt: 'Resolved earlier PPT request', detail: { description: 'Slide-ready summary.', inlineRefs: [] },
+      briefing: { author: 'source', topics: [{ title: 'Encryption', summary: 'Preserve encrypted values.', turns: [1] }], items: [{ kind: 'constraint', status: 'reported', text: 'Cache values must remain encrypted.', refs: ['r1'] }] } };
+    await cli(folder, current, body); return { started: true, error: null };
+  }) });
+  const key = apiKeysDb.createApiKey(userId, 'custom request test').apiKey;
+  const options = { ...input(), scope: 'custom', granularity: 'custom', ...(preparationPrompt ? { preparationPrompt } : {}) };
+  const url = base.replace('/context-bridge', '/api/context/requests');
+  const response = await fetch(url, { method: 'POST', headers: { 'x-api-key': key, 'Content-Type': 'application/json' }, body: JSON.stringify(options) });
+  assert.equal(response.status, 202);
+  const request = (await response.json() as { data: ContextRequest }).data;
+  await service.tick(); await until(() => service.read(userId, request.id).status === 'ready');
+  await service.tick();
+  const done = service.view(userId, request.id);
+  assert.equal(done.status, 'completed'); assert.equal(done.package?.preparationPrompt, preparationPrompt || 'Resolved earlier PPT request');
+  assert.deepEqual(done.package?.selectedRefs, ['r1']); assert.deepEqual(done.package?.inlineRefs, []);
+  assert.equal((await service.create(userId, request.input)).id, request.id);
+  await assert.rejects(service.create(userId, { ...request.input, preparationPrompt: 'Different scope' }), /different choices/);
+  const malformed = await fetch(url, { method: 'POST', headers: { 'x-api-key': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...options, requestId: 'invalid', preparationPrompt: 42 }) });
+  assert.equal(malformed.status, 400);
 }));

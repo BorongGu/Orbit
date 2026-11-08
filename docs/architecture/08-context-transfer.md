@@ -27,6 +27,59 @@ The dialog binds the source to the conversation that opened it. Choose:
 The trailing command text fills the recipient instruction. Orbit resolves session
 ids, creates a new recipient when requested, and exposes an “open recipient” button.
 
+### Custom packaging from a source-session prompt
+
+Both scope and granularity also offer `custom`, independently of each other. Use
+“按源会话要求自定义” to select both at once. For example, tell the source agent:
+
+```text
+将刚刚讨论的研究方案打包，只需要总结制作 PPT 必要的内容。我用系统的 /handoff 传递。
+```
+
+Then open `/handoff`, select the custom action, choose the recipient and submit.
+An empty “源会话打包要求” tells the source agent to use the latest explicit packaging
+request from its conversation. Filling that field supplies the packaging prompt
+directly for this transfer. The recipient instruction remains a separate field.
+Existing preset choices continue to define any dimension left on a preset.
+
+The shortcut `/handoff --custom` opens both custom dimensions immediately.
+`/handoff --custom 只总结研究方案中制作 PPT 必要的内容` also fills the source prompt;
+the same syntax works with `/context`. Ordinary trailing text without `--custom`
+continues to fill the recipient instruction.
+
+The source agent resolves topic, purpose, audience and detail from that request.
+Custom scope selects individual snapshot records, including older or separated
+discussion, and can omit the latest turn. Custom detail can produce just a cited
+summary, or include specifically chosen raw evidence. The resolved requirements
+and detail description remain in the exported package for review. When the source
+conversation supplies no clear packaging request, the agent asks for the missing
+intent before submitting a package.
+
+At the API boundary, request `scope` and `granularity` each accept `custom`, with
+optional `preparationPrompt` (up to 16,000 characters). Package creation uses:
+
+```json
+{
+  "scope": {
+    "kind": "custom",
+    "title": "Research slides",
+    "rationale": "Only these findings support the intended presentation.",
+    "confidence": "high",
+    "refs": ["r3", "r8"]
+  },
+  "granularity": "custom",
+  "preparationPrompt": "Summarize only the research findings needed for the PPT.",
+  "detail": { "description": "Slide-ready points and caveats, with citations.", "inlineRefs": [] }
+}
+```
+
+Supply `snapshotId` and the cited `briefing` as usual. Custom packages require a
+resolved `preparationPrompt`; explicit request text is preserved by the bridge.
+The topic map covers the turns containing selected records. Every citation and
+`detail.inlineRefs` entry must belong to that selection. Custom detail starts with
+the coarse text budget (16,000 characters); its selected evidence remains subject
+to `maxChars`, with omitted records recorded in the manifest.
+
 “整理并传递” creates a persisted request. Once the source is idle, its existing
 agent takes one preparation turn using the selected source model and permissions.
 It reads the frozen turn index and cited records, authors the semantic selection,

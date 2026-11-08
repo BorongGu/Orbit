@@ -38,7 +38,7 @@ function owner(req: Request): number {
 function packageInput(value: unknown): ContextPackageInput {
   const body = object(value);
   const source = object(body.scope);
-  const kind = choice(source.kind, 'scope.kind', ['all_topics', 'recent_topic']);
+  const kind = choice(source.kind, 'scope.kind', ['all_topics', 'recent_topic', 'custom']);
   let scope: ContextScope = { kind: 'all_topics' };
   if (kind === 'recent_topic') {
     const range = (value: unknown) => { const item = object(value); return { from: integer(item.from, 'range.from'), to: integer(item.to, 'range.to') }; };
@@ -47,6 +47,11 @@ function packageInput(value: unknown): ContextPackageInput {
       focus: list(source.focus, 'focus', 100).map(range),
       background: list(source.background ?? [], 'background', 100).map(value => ({ ...range(value), reason: text(object(value).reason, 'background reason', 2000) })) };
     if (!scope.focus.length) invalid('focus');
+  } else if (kind === 'custom') {
+    const refs = list(source.refs, 'scope.refs', 100_000).map(ref => text(ref, 'scope reference'));
+    if (!refs.length) invalid('scope.refs');
+    scope = { kind, title: text(source.title, 'scope.title', 500), rationale: text(source.rationale, 'scope.rationale', 8000),
+      confidence: choice(source.confidence, 'scope.confidence', ['high', 'medium', 'low']), refs };
   }
   const brief = object(body.briefing);
   const briefing: ContextBriefing = {
@@ -62,8 +67,15 @@ function packageInput(value: unknown): ContextPackageInput {
     }; }),
   };
   if (!briefing.topics.length || !briefing.items.length) invalid('briefing coverage');
-  return { snapshotId: text(body.snapshotId, 'snapshotId'), scope, briefing,
-    granularity: choice(body.granularity, 'granularity', ['coarse', 'fine']), maxChars: integer(body.maxChars ?? (body.granularity === 'fine' ? 64_000 : 16_000), 'maxChars', 4000, 160_000) };
+  const granularity = choice(body.granularity, 'granularity', ['coarse', 'fine', 'custom']);
+  const custom = scope.kind === 'custom' || granularity === 'custom';
+  const preparationPrompt = custom || body.preparationPrompt !== undefined ? text(body.preparationPrompt, 'preparationPrompt', 16000) : undefined;
+  const detail = granularity === 'custom' ? object(body.detail) : undefined;
+  if (body.detail !== undefined && !detail) invalid('detail requires custom granularity');
+  return { snapshotId: text(body.snapshotId, 'snapshotId'), scope, briefing, granularity,
+    ...(preparationPrompt ? { preparationPrompt } : {}),
+    ...(detail ? { detail: { description: text(detail.description, 'detail.description', 4000), inlineRefs: list(detail.inlineRefs, 'detail.inlineRefs', 100_000).map(ref => text(ref, 'detail reference')) } } : {}),
+    maxChars: integer(body.maxChars ?? (granularity === 'fine' ? 64_000 : 16_000), 'maxChars', 4000, 160_000) };
 }
 function page<T>(entries: T[], req: Request) {
   const offset = integer(Number(req.query.offset ?? 0), 'offset');
@@ -76,7 +88,8 @@ function requestInput(value: unknown): ContextRequestInput {
   const targetKind = choice(target.kind, 'target.kind', ['existing', 'new']);
   const optional = (value: unknown, name: string) => value === undefined ? undefined : text(value, name, 200);
   return { sourceSessionId: text(body.sourceSessionId, 'sourceSessionId'), requestId: text(body.requestId, 'requestId'),
-    scope: choice(body.scope, 'scope', ['all_topics', 'recent_topic']), granularity: choice(body.granularity, 'granularity', ['coarse', 'fine']),
+    scope: choice(body.scope, 'scope', ['all_topics', 'recent_topic', 'custom']), granularity: choice(body.granularity, 'granularity', ['coarse', 'fine', 'custom']),
+    ...(body.preparationPrompt === undefined || body.preparationPrompt === '' ? {} : { preparationPrompt: text(body.preparationPrompt, 'preparationPrompt', 16000) }),
     instruction: text(body.instruction, 'instruction', 16000), mode: choice(body.mode, 'mode', ['attach', 'start', 'steer']),
     sourceModel: optional(body.sourceModel, 'sourceModel'), sourceEffort: optional(body.sourceEffort, 'sourceEffort'),
     permissionMode: choice(body.permissionMode ?? 'default', 'permissionMode', ['default', 'acceptEdits', 'auto', 'bypassPermissions', 'plan']),

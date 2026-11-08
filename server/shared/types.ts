@@ -38,11 +38,13 @@ export type ContextSnapshot = {
   records: ContextRecord[]; limitations: string[];
 };
 
-/** Semantic topic selection supplied by a caller that has read the snapshot; ranges include complete user turns. */
+/** Semantic selection from one snapshot: preset ranges include whole turns; custom refs select individual records for the user's purpose. */
 export type ContextScope = { kind: 'all_topics' } | {
   kind: 'recent_topic'; title: string; rationale: string; confidence: 'high' | 'medium' | 'low';
   focus: Array<{ from: number; to: number }>;
   background: Array<{ from: number; to: number; reason: string }>;
+} | {
+  kind: 'custom'; title: string; rationale: string; confidence: 'high' | 'medium' | 'low'; refs: string[];
 };
 
 /** Cited caller-authored synthesis, preserving observation, proposal and uncertainty as distinct states. */
@@ -57,7 +59,11 @@ export type ContextBriefing = {
 
 /** Validated creation contract; scope and granularity are independent. Recent topics require a semantic selection. */
 export type ContextPackageInput = {
-  snapshotId: string; scope: ContextScope; granularity: 'coarse' | 'fine';
+  snapshotId: string; scope: ContextScope; granularity: 'coarse' | 'fine' | 'custom';
+  /** Resolved source-agent packaging requirements, preserved with custom selections for review. */
+  preparationPrompt?: string;
+  /** Custom detail states its purpose and chooses complete evidence records to inline; [] means summary with citations. */
+  detail?: { description: string; inlineRefs: string[] };
   briefing: ContextBriefing; maxChars: number;
 };
 
@@ -78,7 +84,9 @@ export type ContextDelivery = {
 
 /** Slash-command choices bound to a single source session; the source agent authors its own cited package. */
 export type ContextRequestInput = {
-  sourceSessionId: string; requestId: string; scope: 'all_topics' | 'recent_topic'; granularity: 'coarse' | 'fine';
+  sourceSessionId: string; requestId: string; scope: 'all_topics' | 'recent_topic' | 'custom'; granularity: 'coarse' | 'fine' | 'custom';
+  /** Instructions for the source agent. With custom modes, omission uses the latest explicit packaging request in the source conversation. */
+  preparationPrompt?: string;
   instruction: string; mode: 'attach' | 'start' | 'steer'; sourceModel?: string; sourceEffort?: string;
   permissionMode: 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions' | 'plan';
   target: { kind: 'existing'; sessionId: string } | { kind: 'new'; provider: LLMProvider; model: string; effort?: string };

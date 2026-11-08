@@ -61,3 +61,40 @@ it('restores pending work after reopening, observes the source stream and cancel
   fireEvent.click(screen.getByRole('button', { name: '取消传递' })); await screen.findByText('已取消传递');
   expect(contextTransferApi.cancel).toHaveBeenCalledWith('request');
 });
+
+it('uses the source conversation request with one custom-mode action and preserves the recipient instruction', async () => {
+  render(<ContextTransferDialog source={source} onClose={() => {}} onNavigate={() => {}} />);
+  fireEvent.click(screen.getByRole('button', { name: '按源会话要求自定义' }));
+  expect((screen.getByLabelText('话题范围') as HTMLSelectElement).value).toBe('custom');
+  expect((screen.getByLabelText('传递粒度') as HTMLSelectElement).value).toBe('custom');
+  expect((screen.getByLabelText('源会话打包要求') as HTMLTextAreaElement).value).toBe('');
+  await waitFor(() => expect((screen.getByRole('button', { name: '整理并传递' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: '整理并传递' }));
+  await screen.findByText('上下文已交付');
+  const sent = vi.mocked(contextTransferApi.create).mock.calls[0][0];
+  expect(sent).toMatchObject({ scope: 'custom', granularity: 'custom' });
+  expect(sent.preparationPrompt).toBeUndefined(); expect(sent.instruction).toContain('接手当前任务');
+});
+
+it('prefills an inline custom packaging prompt separately from instructions to the recipient', async () => {
+  render(<ContextTransferDialog source={{ ...source, instruction: '--custom 只总结制作 PPT 必要的结论' }} onClose={() => {}} onNavigate={() => {}} />);
+  expect((screen.getByLabelText('源会话打包要求') as HTMLTextAreaElement).value).toBe('只总结制作 PPT 必要的结论');
+  fireEvent.change(screen.getByLabelText('接收说明'), { target: { value: '制作十页演示文稿' } });
+  await waitFor(() => expect((screen.getByRole('button', { name: '整理并传递' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: '整理并传递' })); await screen.findByText('上下文已交付');
+  expect(contextTransferApi.create).toHaveBeenCalledWith(expect.objectContaining({ scope: 'custom', granularity: 'custom', preparationPrompt: '只总结制作 PPT 必要的结论', instruction: '制作十页演示文稿' }));
+});
+
+it('composes custom detail with all-topic scope and clears custom-only instructions when returning to presets', async () => {
+  vi.mocked(contextTransferApi.create).mockRejectedValueOnce(new Error('Retry this request'));
+  render(<ContextTransferDialog source={source} onClose={() => {}} onNavigate={() => {}} />);
+  fireEvent.change(screen.getByLabelText('话题范围'), { target: { value: 'all_topics' } });
+  fireEvent.change(screen.getByLabelText('传递粒度'), { target: { value: 'custom' } });
+  fireEvent.change(screen.getByLabelText('源会话打包要求'), { target: { value: '只留标题和一句话结论' } });
+  await waitFor(() => expect((screen.getByRole('button', { name: '整理并传递' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: '整理并传递' })); await screen.findByText('Retry this request');
+  expect(vi.mocked(contextTransferApi.create).mock.calls[0][0]).toMatchObject({ scope: 'all_topics', granularity: 'custom', preparationPrompt: '只留标题和一句话结论' });
+  fireEvent.change(screen.getByLabelText('传递粒度'), { target: { value: 'coarse' } });
+  fireEvent.click(screen.getByRole('button', { name: '整理并传递' })); await screen.findByText('上下文已交付');
+  expect(vi.mocked(contextTransferApi.create).mock.calls[1][0].preparationPrompt).toBeUndefined();
+});

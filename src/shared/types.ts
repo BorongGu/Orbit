@@ -26,7 +26,9 @@ export type ContextTransferCommand = {
 };
 /** Choices submitted by the context dialog; semantic package authoring runs in the source agent. */
 export type ContextTransferInput = {
-  sourceSessionId: string; requestId: string; scope: 'all_topics' | 'recent_topic'; granularity: 'coarse' | 'fine';
+  sourceSessionId: string; requestId: string; scope: 'all_topics' | 'recent_topic' | 'custom'; granularity: 'coarse' | 'fine' | 'custom';
+  /** Custom packaging prompt for the source; omission uses the source conversation's latest explicit request. */
+  preparationPrompt?: string;
   instruction: string; mode: 'attach' | 'start' | 'steer'; sourceModel?: string; sourceEffort?: string; permissionMode: PermissionMode;
   target: { kind: 'existing'; sessionId: string } | { kind: 'new'; provider: LLMProvider; model: string; effort?: string };
 };

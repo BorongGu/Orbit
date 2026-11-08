@@ -16,11 +16,13 @@ const LABELS = { queued: '等待当前会话空闲', preparing: '正在读取会
 export function ContextTransferDialog({ source, onClose, onNavigate, onSourceActivity }: {
   source: ContextTransferCommand; onClose: () => void; onNavigate: (id: string) => void; onSourceActivity?: (id: string) => void;
 }) {
+  const customCommand = /^--custom(?:\s|$)([\s\S]*)/.exec(source.instruction);
   // These are the user's independent scope/detail/recipient choices before starting the source-agent turn.
-  const [form, setForm] = useState({ scope: 'recent_topic' as ContextTransferInput['scope'], granularity: source.command === 'handoff' ? 'fine' as const : 'coarse' as const,
+  const [form, setForm] = useState({ scope: (customCommand ? 'custom' : 'recent_topic') as ContextTransferInput['scope'], granularity: (customCommand ? 'custom' : source.command === 'handoff' ? 'fine' : 'coarse') as ContextTransferInput['granularity'],
+    preparationPrompt: customCommand?.[1].trim() || '',
     targetKind: 'new' as 'new' | 'existing', targetId: '', provider: source.provider, model: '', effort: 'default',
     mode: source.command === 'handoff' ? 'start' as ContextTransferInput['mode'] : 'attach' as ContextTransferInput['mode'],
-    instruction: source.instruction || (source.command === 'handoff' ? '请根据移交的上下文接手当前任务，先核查现状，再继续推进。' : '请将这份上下文作为后续讨论的背景，结合现有信息独立判断。') });
+    instruction: (!customCommand && source.instruction) || (source.command === 'handoff' ? '请根据移交的上下文接手当前任务，先核查现状，再继续推进。' : '请将这份上下文作为后续讨论的背景，结合现有信息独立判断。') });
   // The server owns request progress; reopening the command restores an active or failed request.
   const [request, setRequest] = useState<ContextTransferRequest | null>(null);
   // Keep recipient pagination independent from locally filtering loaded conversation titles.
@@ -53,6 +55,7 @@ export function ContextTransferDialog({ source, onClose, onNavigate, onSourceAct
   }, []);
 
   const requestId = request?.id;
+  const custom = form.scope === 'custom' || form.granularity === 'custom';
   const requestStatus = request?.status;
   const requestActive = request && ACTIVE.has(request.status);
   useEffect(() => {
@@ -86,6 +89,7 @@ export function ContextTransferDialog({ source, onClose, onNavigate, onSourceAct
     <p className="mt-1 truncate text-xs text-muted-foreground" title={source.title}>来源：{source.title} · {source.provider}</p>
     {request ? <div className="mt-5 space-y-4">
       <p className="flex items-center gap-2 text-sm font-medium" role="status">{requestActive && <Loader2 size={16} className="animate-spin" />}{LABELS[request.status]}</p>
+      {(request.input.scope === 'custom' || request.input.granularity === 'custom') && <p className="whitespace-pre-wrap text-xs text-muted-foreground">源会话打包要求：{request.input.preparationPrompt || '沿用源会话中最近明确提出的打包要求。'}</p>}
       <p className="text-sm text-muted-foreground">{request.status === 'completed' ? request.input.mode === 'attach' ? '接收会话将在下一轮读取这份上下文。' : '接收 agent 已开始处理交接内容。' : requestActive ? '可以关闭面板继续使用 Orbit；再次输入 /context 或 /handoff 可查看进度。' : request.error || '可以调整选项，重新发起传递。'}</p>
       {requestActive && <button type="button" className="text-xs text-primary underline" onClick={() => openSession(source.sessionId)}>查看原会话的整理进度与工具确认</button>}
       {request.package && <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm">查看上下文摘要</summary><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words font-sans text-xs leading-relaxed">{request.package.text}</pre></details>}
@@ -103,14 +107,17 @@ export function ContextTransferDialog({ source, onClose, onNavigate, onSourceAct
       setActivity(previous => ({ ...previous, submitting: true, error: '' }));
       try {
         const value = await contextTransferApi.create({ sourceSessionId: source.sessionId, requestId: pending.current.id, scope: form.scope, granularity: form.granularity,
+          ...(custom && form.preparationPrompt.trim() ? { preparationPrompt: form.preparationPrompt.trim() } : {}),
           mode: form.mode, instruction: form.instruction, sourceModel: source.model || undefined, sourceEffort: source.effort || undefined, permissionMode: source.permissionMode,
           target: form.targetKind === 'new' ? { kind: 'new', provider: form.provider, model: form.model, effort: form.effort } : { kind: 'existing', sessionId: form.targetId } });
         if (mounted.current) setRequest(value);
       } catch (error) { if (mounted.current) setActivity(previous => ({ ...previous, error: error instanceof Error ? error.message : String(error) })); }
       finally { if (mounted.current) setActivity(previous => ({ ...previous, submitting: false })); }
     }}>
-      <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1"><span className="text-xs text-muted-foreground">话题范围</span><select aria-label="话题范围" className={FIELD} value={form.scope} onChange={event => setForm(previous => ({ ...previous, scope: event.target.value as typeof form.scope }))}><option value="recent_topic">近期话题与必要前因</option><option value="all_topics">这个会话的全部话题</option></select></label>
-      <label className="space-y-1"><span className="text-xs text-muted-foreground">传递粒度</span><select aria-label="传递粒度" className={FIELD} value={form.granularity} onChange={event => setForm(previous => ({ ...previous, granularity: event.target.value as typeof form.granularity }))}><option value="coarse">粗粒度 · 信息融合</option><option value="fine">细粒度 · 任务交接</option></select></label></div>
+      <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1"><span className="text-xs text-muted-foreground">话题范围</span><select aria-label="话题范围" className={FIELD} value={form.scope} onChange={event => setForm(previous => ({ ...previous, scope: event.target.value as typeof form.scope }))}><option value="recent_topic">近期话题与必要前因</option><option value="all_topics">这个会话的全部话题</option><option value="custom">自定义 · 按打包要求选取</option></select></label>
+      <label className="space-y-1"><span className="text-xs text-muted-foreground">传递粒度</span><select aria-label="传递粒度" className={FIELD} value={form.granularity} onChange={event => setForm(previous => ({ ...previous, granularity: event.target.value as typeof form.granularity }))}><option value="coarse">粗粒度 · 信息融合</option><option value="fine">细粒度 · 任务交接</option><option value="custom">自定义 · 按用途组织细节</option></select></label></div>
+      <button type="button" className="text-xs text-primary underline underline-offset-2" onClick={() => setForm(previous => ({ ...previous, scope: 'custom', granularity: 'custom' }))}>按源会话要求自定义</button>
+      {custom && <label className="block space-y-1"><span className="text-xs text-muted-foreground">给源 agent 的打包要求（可选）</span><textarea aria-label="源会话打包要求" maxLength={16000} rows={3} className={FIELD} value={form.preparationPrompt} onChange={event => setForm(previous => ({ ...previous, preparationPrompt: event.target.value }))} placeholder="例如：只打包刚刚讨论的研究方案，整理制作 PPT 必要的结论、数据和配图线索。" /><span className="block text-xs leading-relaxed text-muted-foreground">留空时，源 agent 会沿用你在原会话中最近明确提出的打包要求；这里填写的内容优先用于本次自定义整理。</span></label>}
       <label className="block space-y-1"><span className="text-xs text-muted-foreground">接收方</span><select aria-label="接收方" className={FIELD} value={form.targetKind} onChange={event => setForm(previous => ({ ...previous, targetKind: event.target.value as typeof form.targetKind, mode: previous.mode === 'steer' ? 'attach' : previous.mode }))}><option value="new">创建新的接收会话</option><option value="existing">已有会话</option></select></label>
       {form.targetKind === 'new' ? <div className="space-y-3 rounded-lg border border-border p-3"><select aria-label="接收 Harness" className={FIELD} value={form.provider} onChange={event => setForm(previous => ({ ...previous, provider: event.target.value as LLMProvider, model: '', effort: 'default' }))}>{['claude', 'codex', 'opencode', 'cursor'].map(provider => <option key={provider} value={provider}>{provider}</option>)}</select>
         <ProviderModelPicker provider={form.provider} model={form.model} effort={form.effort} label="接收模型与推理强度" onChange={(model, effort) => setForm(previous => ({ ...previous, model, effort }))} /></div>
@@ -122,7 +129,7 @@ export function ContextTransferDialog({ source, onClose, onNavigate, onSourceAct
           }}>加载更多会话</button>}</div>}
       <label className="block space-y-1"><span className="text-xs text-muted-foreground">接收方式</span><select aria-label="接收方式" className={FIELD} value={form.mode} onChange={event => setForm(previous => ({ ...previous, mode: event.target.value as typeof form.mode }))}><option value="attach">附到下一轮，继续提问时读取</option><option value="start">开始接手，忙碌时等待空闲</option>{form.targetKind === 'existing' && selectedProvider === 'codex' && <option value="steer">加入正在进行的工作</option>}</select></label>
       <label className="block space-y-1"><span className="text-xs text-muted-foreground">给接收方的说明</span><textarea aria-label="接收说明" required maxLength={16000} rows={3} className={FIELD} value={form.instruction} onChange={event => setForm(previous => ({ ...previous, instruction: event.target.value }))} /></label>
-      <p className="text-xs leading-relaxed text-muted-foreground">当前 agent 将使用本会话的模型整理一次上下文。近期话题会包含相关前因与最新决定；接收模型会独立核查并继续处理。</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">当前 agent 将使用本会话的模型整理一次上下文。{custom ? '自定义维度依据源会话打包要求决定，结果会保留来源引用。' : '近期话题会包含相关前因与最新决定；接收模型会独立核查并继续处理。'}</p>
       <button type="submit" disabled={activity.restoring || activity.submitting || (form.targetKind === 'new' ? !form.model : !form.targetId)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm text-primary-foreground disabled:opacity-50">{(activity.restoring || activity.submitting) && <Loader2 size={15} className="animate-spin" />}{activity.restoring ? '读取传递状态…' : activity.submitting ? '正在发起…' : '整理并传递'}</button>
     </form>}
     {activity.error && <p role="alert" className="mt-3 text-sm text-red-500">{activity.error}</p>}

@@ -92,6 +92,33 @@ test('topic validation retains all selected topics, the latest turn and evidence
   await assert.rejects(contextPackageService.create(userId, forged), /evidence references/);
 }));
 
+test('custom scope can select an older record for slide summaries without including neighboring or latest topics', async () => fixture(async ({ userId, snapshot }) => {
+  const request: ContextPackageInput = { ...input(snapshot), scope: { kind: 'custom', title: 'PPT cache constraint', rationale: 'Only the encryption requirement is needed for these slides.', confidence: 'high', refs: ['r1'] },
+    granularity: 'custom', preparationPrompt: '只总结制作 PPT 必要的加密约束。', detail: { description: 'One slide-ready point with a citation.', inlineRefs: [] },
+    briefing: { author: 'source agent', topics: [{ title: 'Encryption', summary: 'Keep cache values encrypted.', turns: [1] }], items: [{ kind: 'constraint', status: 'reported', text: 'Preserve encrypted values.', refs: ['r1'] }] } };
+  const value = await contextPackageService.create(userId, request);
+  assert.deepEqual(value.selectedRefs, ['r1']); assert.deepEqual(value.inlineRefs, []);
+  assert.equal(value.text.includes('Execution evidence'), false); assert.match(value.text, /PPT/);
+  const records = contextPackageService.records(userId, value.id);
+  assert.equal(records.length, 1); assert.equal(records[0].ref, 'r1');
+  assert.equal((await readFile(value.recordsPath, 'utf8')).includes('SQLite'), false, 'unselected records in the same turn stay outside the package');
+  for (const change of [
+    { scope: { ...request.scope, kind: 'custom' as const, title: 'Bad', rationale: 'Bad', confidence: 'high' as const, refs: ['missing'] } },
+    { detail: { description: 'Include unrelated raw data', inlineRefs: ['r8'] } },
+    { preparationPrompt: '' },
+  ]) await assert.rejects(contextPackageService.create(userId, { ...request, ...change }), /Custom/);
+}));
+
+test('custom detail composes with preset scope and includes only explicitly chosen raw evidence', async () => fixture(async ({ userId, snapshot }) => {
+  const request: ContextPackageInput = { ...input(snapshot), granularity: 'custom', preparationPrompt: 'Summarize all topics, quote only the recorded write operation.', detail: { description: 'Summary plus one implementation reference.', inlineRefs: ['r4'] } };
+  const value = await contextPackageService.create(userId, request);
+  assert.equal(value.selectedRefs.length, 8); assert.deepEqual(value.inlineRefs, ['r4']);
+  assert.match(value.text, /Write/); assert.equal(value.text.includes('Travel recommendation.'), false);
+  const customScope: ContextPackageInput = { ...request, scope: { kind: 'custom', title: 'Implementation evidence', rationale: 'Quote the relevant operation only.', confidence: 'high', refs: ['r4'] },
+    granularity: 'fine', detail: undefined, briefing: { author: 'source', topics: [{ title: 'Write', summary: 'File created.', turns: [2] }], items: [{ kind: 'artifact', status: 'observed', text: 'cache.ts written', refs: ['r4'] }] } };
+  assert.deepEqual((await contextPackageService.create(userId, customScope)).inlineRefs, ['r4']);
+}));
+
 test('small inline budgets keep the complete evidence separately and reject an oversized briefing', async () => fixture(async ({ userId, snapshot }) => {
   const changed = structuredClone(snapshot); changed.id += '-large'; changed.records[3].content = 'A'.repeat(20_000);
   contextTransferDb.saveSnapshot(userId, changed);

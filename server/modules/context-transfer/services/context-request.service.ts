@@ -87,7 +87,7 @@ export function createContextRequestService(overrides: Partial<{
       if (!['analyzing', 'ready'].includes(current.status)) fail('This preparation has ended.', 'CONTEXT_REQUEST_ENDED', 409);
       const ongoing = packageWrites.get(id); if (ongoing) return ongoing;
       const promise = (async () => {
-        const value = await contextPackageService.create(userId, input);
+        const value = await contextPackageService.create(userId, { ...input, ...(current.input.preparationPrompt ? { preparationPrompt: current.input.preparationPrompt } : {}) });
         if (!contextRequestsDb.update(id, { packageId: value.id, status: 'ready', error: null }, 'analyzing')) fail('This preparation ended while the package was being written.', 'CONTEXT_REQUEST_ENDED', 409);
         return value;
       })();
@@ -134,12 +134,18 @@ export function createContextRequestService(overrides: Partial<{
                 `[Orbit context preparation ${request.id}]`,
                 'Prepare a context transfer of this conversation as it stood before this preparation request. Use your understanding of the original task; this preparation is bookkeeping.',
                 `Snapshot: ${snapshot.id}. Scope: ${request.input.scope}. Granularity: ${request.input.granularity}.`,
+                ...(request.input.scope === 'custom' || request.input.granularity === 'custom' ? [
+                  request.input.preparationPrompt ? `Source packaging instructions from the user (governs the custom dimensions):\n${request.input.preparationPrompt}`
+                    : 'Resolve the custom dimensions from the latest explicit user request about packaging or transferring context in this source conversation. Preserve its intended topic, audience, purpose and required depth, even if another topic was discussed afterward. If that request is missing or materially ambiguous, ask the user to specify it and stop before submitting a package.',
+                  'Record the resolved packaging request as preparationPrompt. Custom scope selects individual source refs for that purpose, including older non-contiguous material; its selection can omit the latest turn. Custom granularity describes the intended output in detail.description and selects detail.inlineRefs for any verbatim evidence needed; use [] for a summary-only package (for example, only slide-ready findings, figures and caveats). Preset dimensions keep their selected behavior.',
+                ] : request.input.preparationPrompt ? [`Source packaging instructions: ${request.input.preparationPrompt}`] : []),
                 `The complete turn index is at ${JSON.stringify(path.join(folder(request.id), 'outline.json'))}. Read it, then retrieve evidence as needed with the scoped CLI below.`,
                 `CLI: ${command}`,
                 `Read records: pass {"snapshotId":"${snapshot.id}","turn":<turn>} on stdin to the CLI's records operation. outline supports offset/limit.`,
                 'For all_topics cover every indexed turn. For recent_topic identify the latest substantive objective, combine its follow-ups/resumptions, and include earlier dependency ranges with reasons; the latest turn belongs in focus.',
                 'Author a cited briefing preserving user constraints, changed decisions, unresolved disagreements, observations and uncertainty. Fine handoff adds progress, artifacts, verification and actionable next steps.',
                 'Create input: {snapshotId, scope: {kind:"all_topics"} OR {kind:"recent_topic",title,rationale,confidence:"high|medium|low",focus:[{from,to}],background:[{from,to,reason}]}, granularity:"coarse|fine", briefing:{author,topics:[{title,summary,turns:[numbers]}],items:[{kind,status,text,refs:["r1"]}]}}.',
+                ...(request.input.scope === 'custom' || request.input.granularity === 'custom' ? ['Custom schema additions: scope may be {kind:"custom",title,rationale,confidence:"high|medium|low",refs:["r1"]}; granularity may be "custom" with detail:{description,inlineRefs:[]}. Include preparationPrompt with the resolved user request. Match the requested scope.kind and granularity exactly. Cover each selected turn in the topic map, while citing only selected records.'] : []),
                 'Item kinds: goal,constraint,fact,decision,disagreement,progress,artifact,verification,open_question,next_step. Status: observed,reported,proposed,uncertain,superseded. Every selected turn belongs to a topic; every item cites selected records.',
                 'Submit that JSON on stdin to the CLI create operation. Resolve validation errors using the returned details. Orbit handles the selected recipient and delivery. Finish with a short confirmation after create succeeds.',
                 `Recipient instruction: ${request.input.instruction}`,
