@@ -156,6 +156,8 @@ const groupRequest = <T>(endpoint: string, method = 'GET', body?: unknown, signa
 
 /** The context-transfer dialog uses persisted requests so preparation continues across navigation and reloads. */
 export const contextTransferApi = {
+  shareBtwIncrement: (conversationId: string) => moduleRequest<{ id: string; status: string; targetSessionId: string }>(
+    `/api/context/btw/${encodeURIComponent(conversationId)}/share`, 'POST'),
   create: (input: ContextTransferInput) => moduleRequest<ContextTransferRequest>('/api/context/requests', 'POST', input),
   latest: (sourceSessionId: string, signal?: AbortSignal) => moduleRequest<ContextTransferRequest | null>(`/api/context/requests?sourceSessionId=${encodeURIComponent(sourceSessionId)}`, 'GET', undefined, signal),
   read: (id: string, signal?: AbortSignal) => moduleRequest<ContextTransferRequest>(`/api/context/requests/${encodeURIComponent(id)}`, 'GET', undefined, signal),

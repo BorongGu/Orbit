@@ -93,6 +93,22 @@ test('a reconnect stays scoped to its authenticated user', async () => {
   send(first, { type: 'finish' });await settle();
 });
 
+test('the incremental boundary is scoped to its BTW owner and advances only after delivery', async () => {
+  const f = fixture();const ws = socket(f.registry, 'owner');
+  send(ws, { type: 'start', conversationId: 'fork', sessionId: 'parent' });await settle();
+  f.emit({ kind: 'btw_message', id: 'q1', role: 'user', content: 'First question' });
+  f.emit({ kind: 'btw_message', id: 'a1', role: 'assistant', content: 'First answer' });
+  f.emit({ kind: 'btw_status', busy: false });
+  assert.throws(() => f.registry.delta('other', 'fork'), /expired/);
+  assert.deepEqual(f.registry.delta('owner', 'fork').messages.map(message => message.id), ['q1', 'a1']);
+  f.registry.markShared('owner', 'fork', 'a1', 'delivery-1');
+  f.emit({ kind: 'btw_message', id: 'q2', role: 'user', content: 'Second question' });
+  f.emit({ kind: 'btw_message', id: 'a2', role: 'assistant', content: 'Second answer' });
+  assert.deepEqual(f.registry.delta('owner', 'fork').messages.map(message => message.id), ['q2', 'a2']);
+  assert.equal(f.registry.delta('owner', 'fork').lastDeliveryId, 'delivery-1');
+  send(ws, { type: 'finish' });await settle();
+});
+
 test('invalid or excessive side questions are rejected before launching a process', async () => {
   const f = fixture();const ws = socket(f.registry);
   for (const data of [{ type: 'start', sessionId: '' }, { type: 'start', sessionId: 'parent', question: 42 },

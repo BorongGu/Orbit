@@ -7,6 +7,7 @@ import '@/modules/i18n';
 import ChatInterface from '@/modules/chat/ChatInterface';
 import { useMarkdownWorkspaceProjectId } from '@/modules/chat/context/MarkdownWorkspaceContext';
 import { BtwPanel } from '@/modules/chat/modals/BtwPanel';
+import { contextTransferApi } from '@/shared/api';
 import type { BtwRequest } from '@/shared/types';
 
 vi.mock('@/modules/chat/transcript/Markdown', () => ({
@@ -92,6 +93,29 @@ test('minimizing hides the portal while its native request, reply, draft and siz
   assert.ok(view.getByText('Answer completed while minimized'));
   assert.equal((view.getByRole('textbox') as HTMLTextAreaElement).value, 'Saved follow-up');
   assert.deepEqual(panelBounds(view.getByRole('dialog')), bounds);
+});
+
+test('one click transfers completed BTW output and later answers become eligible again', async () => {
+  const share = vi.spyOn(contextTransferApi, 'shareBtwIncrement').mockResolvedValue({ id: 'delivery', status: 'pending', targetSessionId: 'parent' });
+  const view = render(<BtwPanel request={REQUEST} onClose={() => {}} />);
+  const socket = instances[0];
+  act(() => { socket.open();socket.frame({ kind: 'btw_ready' });
+    socket.frame({ kind: 'btw_message', id: 'q1', role: 'user', content: 'Question' });
+    socket.frame({ kind: 'btw_message', id: 'a1', role: 'assistant', content: 'Completed answer' });
+    socket.frame({ kind: 'btw_status', busy: false }); });
+  const button = view.getByRole('button', { name: /Send new BTW context|将 BTW 新增上下文/ });
+  assert.equal((button as HTMLButtonElement).disabled, false);
+  await act(async () => { fireEvent.click(button); });
+  assert.deepEqual(share.mock.calls, [['window']]);
+  assert.ok(view.getByText(/Attached to the parent session|已附到母会话/));
+  assert.equal((button as HTMLButtonElement).disabled, true);
+  act(() => { socket.frame({ kind: 'btw_message', id: 'q2', role: 'user', content: 'Follow-up' }); });
+  assert.equal((button as HTMLButtonElement).disabled, true);
+  act(() => { socket.frame({ kind: 'btw_message', id: 'a2', role: 'assistant', content: 'New finding' });
+    socket.frame({ kind: 'btw_status', busy: false }); });
+  assert.equal((button as HTMLButtonElement).disabled, false);
+  await act(async () => { fireEvent.click(button); });
+  assert.equal(share.mock.calls.length, 2);
 });
 
 test('the parent composer restores only its own minimized BTW window after navigation and refresh', () => {

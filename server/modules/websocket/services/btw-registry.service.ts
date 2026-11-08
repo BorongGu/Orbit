@@ -1,5 +1,5 @@
 import { createBtwSession } from '@/modules/providers/index.js';
-import type { BtwEvent, BtwInput, BtwSession } from '@/shared/types.js';
+import type { BtwDelta, BtwEvent, BtwInput, BtwSession } from '@/shared/types.js';
 
 type Conversation = {
   session: BtwSession;
@@ -10,6 +10,8 @@ type Conversation = {
   status: Extract<BtwEvent, { kind: 'btw_status' }>;
   error?: Extract<BtwEvent, { kind: 'btw_error' }>;
   closed: boolean;
+  sharedThroughId?: string;
+  lastDeliveryId?: string;
   timer?: ReturnType<typeof setTimeout>;
 };
 
@@ -81,6 +83,23 @@ export function createBtwRegistry(createSession = createBtwSession, retentionMs 
     },
     async send(owner: string, id: string, content: string) { await find(owner, id).session.send(content); },
     async stop(owner: string, id: string) { await find(owner, id).session.stop(); },
+    /** Context transfer reads only BTW-native messages newer than the last completed delivery. */
+    delta(owner: string, id: string): BtwDelta {
+      const entry = find(owner, id);
+      const messages = [...entry.messages.values()];
+      const boundary = entry.sharedThroughId ? messages.findIndex(message => message.id === entry.sharedThroughId) : -1;
+      if (entry.sharedThroughId && boundary < 0) throw new Error('The BTW transfer boundary is unavailable.');
+      const pending = messages.slice(boundary + 1);
+      return { sourceSessionId: entry.sourceId, messages: pending, lastMessageId: pending.at(-1)?.id ?? null,
+        lastDeliveryId: entry.lastDeliveryId ?? null, busy: entry.status.busy, closed: entry.closed };
+    },
+    /** A durable receipt advances the BTW boundary, including the last message captured by this click. */
+    markShared(owner: string, id: string, messageId: string, deliveryId: string): void {
+      const entry = find(owner, id);
+      if (!entry.messages.has(messageId)) throw new Error('The BTW transfer boundary is unavailable.');
+      entry.sharedThroughId = messageId;
+      entry.lastDeliveryId = deliveryId;
+    },
     finish,
   };
 }

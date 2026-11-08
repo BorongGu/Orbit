@@ -137,6 +137,10 @@ export type BtwInput = { sessionId: string; question?: string; model?: string; e
 /** Lifecycle contract used by the BTW gateway for Codex and OpenCode temporary conversations. */
 export type BtwSession = { start(): Promise<void>; send(content: string): Promise<void>; stop(): Promise<void>; close(): Promise<void> };
 
+/** User-scoped BTW messages after the native fork; only entries after the last delivery are eligible for another transfer. */
+export type BtwDelta = { sourceSessionId: string; messages: Array<Extract<BtwEvent, { kind: 'btw_message' }>>;
+  lastMessageId: string | null; lastDeliveryId: string | null; busy: boolean; closed: boolean };
+
 // ---------------------------
 //----------------- WEBSOCKET TRANSPORT TYPES ------------
 /**

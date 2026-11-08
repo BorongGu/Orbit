@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ArrowUp, MessageSquare, Minus, Square, X } from 'lucide-react';
+import { ArrowUp, MessageSquare, Minus, Square, Upload, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 
@@ -9,6 +9,7 @@ import { MarkdownWorkspaceContext } from '@/modules/chat/context/MarkdownWorkspa
 import { Markdown } from '@/modules/chat/transcript/Markdown';
 import StreamingMarkdown from '@/modules/chat/transcript/StreamingMarkdown';
 import type { BtwRequest } from '@/shared/types';
+import { contextTransferApi } from '@/shared/api';
 
 type BtwPanelProps = { request: BtwRequest; active?: boolean; onMinimize?(): void; onClose(): void };
 
@@ -39,6 +40,10 @@ export function BtwPanel({ request, active = true, onMinimize, onClose }: BtwPan
   const markdownWorkspaceValue = useMemo(() => ({ projectId: request.projectId ?? null }), [request.projectId]);
   // Elapsed time distinguishes an active provider request from a frozen panel.
   const [clock, setClock] = useState(Date.now);
+  // The return action tracks its request independently of the ongoing BTW socket.
+  const [transferState, setTransferState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [lastSharedMessageId, setLastSharedMessageId] = useState<string | null>(null);
+  const [transferError, setTransferError] = useState('');
   const elapsed = Math.max(0, Math.floor((clock - busySince) / 1000));
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -58,6 +63,21 @@ export function BtwPanel({ request, active = true, onMinimize, onClose }: BtwPan
     if (!draft.trim() || !ready || busy || closed) return;
     if (send(draft.trim())) { setDraft(''); followRef.current = true; }
   };
+  const latestMessageId = messages.at(-1)?.id ?? null;
+  const hasAnswer = messages.at(-1)?.role === 'assistant' && Boolean(messages.at(-1)?.content.trim());
+  const shareIncrement = async () => {
+    if (!ready || busy || closed || !hasAnswer || transferState === 'sending') return;
+    const boundary = latestMessageId;
+    setTransferState('sending');setTransferError('');
+    try {
+      await contextTransferApi.shareBtwIncrement(request.key);
+      setLastSharedMessageId(boundary);
+      setTransferState('sent');
+    } catch (cause) {
+      setTransferError(cause instanceof Error ? cause.message : String(cause));
+      setTransferState('error');
+    }
+  };
   // Keeping the component mounted preserves the source's socket while its window is hidden.
   if (!active || request.minimized) return null;
   return createPortal(<MarkdownWorkspaceContext.Provider value={markdownWorkspaceValue}><section ref={panelRef} role="dialog" aria-modal="false" aria-labelledby={titleId} data-btw-panel
@@ -70,6 +90,12 @@ export function BtwPanel({ request, active = true, onMinimize, onClose }: BtwPan
       <MessageSquare aria-hidden className="h-4 w-4 text-primary/80" />
       <h2 id={titleId} className="text-sm font-medium">{t('btw.title')}</h2>
       <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">{t('btw.temporary')}</span>
+      <button type="button" onClick={() => { void shareIncrement(); }}
+        disabled={!ready || busy || closed || !hasAnswer || transferState === 'sending' || latestMessageId === lastSharedMessageId}
+        aria-label={t('btw.shareIncrement')} title={t('btw.shareIncrement')}
+        className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40">
+        <Upload className="h-3.5 w-3.5" /><span>{t('btw.shareShort')}</span>
+      </button>
       {onMinimize && <button type="button" onClick={() => { inputRef.current?.blur(); onMinimize(); }}
         aria-label={t('btw.minimize')} title={t('btw.minimize')}
         className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><Minus className="h-4 w-4" /></button>}
@@ -91,6 +117,10 @@ export function BtwPanel({ request, active = true, onMinimize, onClose }: BtwPan
         <span className="shrink-0 tabular-nums">{elapsed}s</span>
       </p>}
       {error && <p role="alert" className="whitespace-pre-wrap text-xs text-muted-foreground">{error}</p>}
+      {transferState === 'sending' && <p role="status" className="text-xs text-muted-foreground">{t('btw.sharing')}</p>}
+      {transferState === 'sent' && latestMessageId === lastSharedMessageId &&
+        <p role="status" className="text-xs text-muted-foreground">{t('btw.shared')}</p>}
+      {transferError && <p role="alert" className="text-xs text-muted-foreground">{transferError}</p>}
       {closed && <p role="status" className="text-xs text-muted-foreground">{t('btw.ended')}</p>}
     </div>
     <form className="shrink-0 border-t border-border/60 p-3" onSubmit={event => { event.preventDefault(); submit(); }}>

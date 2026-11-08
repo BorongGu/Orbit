@@ -15,6 +15,7 @@ const files = [
   'server/modules/context-transfer/services/context-snapshot.service.ts',
   'server/modules/context-transfer/services/context-package.service.ts',
   'server/modules/context-transfer/services/context-delivery.service.ts',
+  'server/modules/context-transfer/services/btw-increment.service.ts',
   'server/modules/database/migrations.ts',
   'server/modules/database/repositories/sessions.db.ts',
   'server/modules/websocket/services/session-upsert-broadcast.service.ts',
@@ -71,6 +72,7 @@ const files = [
   'server/modules/providers/provider.routes.ts',
   'server/modules/websocket/services/chat-websocket.service.ts',
   'server/modules/websocket/services/btw-registry.service.ts',
+  'server/modules/websocket/index.ts',
   'server/modules/websocket/services/btw-websocket.service.ts',
   'server/modules/websocket/services/websocket-server.service.ts',
 ];

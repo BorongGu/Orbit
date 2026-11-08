@@ -1,5 +1,7 @@
 export { WS_OPEN_STATE, connectedClients } from './services/websocket-state.service.js';
 export { createWebSocketServer } from './services/websocket-server.service.js';
+// Context transfer reads the same authenticated BTW registry as its live socket gateway.
+export { btwRegistry } from './services/btw-registry.service.js';
 export { chatRunRegistry } from './services/chat-run-registry.service.js';
 // Consumed by the providers module's sessions watcher, which announces the
 // sessions it (re)indexed from disk through the same builder the chat gateway

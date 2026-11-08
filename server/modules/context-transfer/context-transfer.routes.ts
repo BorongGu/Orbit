@@ -7,6 +7,7 @@ import { contextSnapshotService } from '@/modules/context-transfer/services/cont
 import { contextPackageService } from '@/modules/context-transfer/services/context-package.service.js';
 import { contextDeliveryService } from '@/modules/context-transfer/services/context-delivery.service.js';
 import { contextRequestService } from '@/modules/context-transfer/services/context-request.service.js';
+import { btwIncrementService } from '@/modules/context-transfer/services/btw-increment.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/index.js';
 import type { ContextBriefing, ContextDelivery, ContextPackageInput, ContextRequestInput, ContextScope } from '@/shared/index.js';
 
@@ -98,6 +99,9 @@ contextTransferRoutes.use((req, res, next) => {
 contextTransferRoutes.post('/requests', asyncHandler(async (req, res) => {
   const request = await contextRequestService.create(owner(req), requestInput(req.body));
   res.status(202).json(createApiSuccessResponse(contextRequestService.view(owner(req), request.id)));
+}));
+contextTransferRoutes.post('/btw/:conversationId/share', asyncHandler(async (req, res) => {
+  res.status(202).json(createApiSuccessResponse(await btwIncrementService.share(owner(req), text(req.params.conversationId, 'conversationId', 200))));
 }));
 contextTransferRoutes.get('/requests', asyncHandler(async (req, res) => {
   const request = contextRequestsDb.latest(owner(req), text(req.query.sourceSessionId, 'sourceSessionId'));
