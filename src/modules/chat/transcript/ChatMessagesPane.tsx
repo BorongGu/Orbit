@@ -192,7 +192,8 @@ function ChatMessagesPane({
             {readingPageOnly && <span role="status" className="rounded-lg bg-background/90 px-2 py-1 text-xs text-muted-foreground">{t('reading.pageOnly')}</span>}
             {onToggleReading && <button type="button" data-reading-toggle onClick={onToggleReading}
               aria-label={t(isReading ? 'reading.exit' : 'reading.enter')}
-              title={t(isReading ? 'reading.exitHint' : 'reading.enter')}
+              aria-keyshortcuts={isReading ? 'Escape' : 'F'}
+              title={t(isReading ? 'reading.exitHint' : 'reading.enterHint')}
               className="flex h-8 items-center gap-1.5 rounded-lg border border-border/50 bg-background/90 px-2 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
               {isReading ? <Minimize2 className="h-4 w-4" aria-hidden /> : <Maximize2 className="h-4 w-4" aria-hidden />}
               {isReading && <span className="text-xs">{t('reading.exit')}</span>}

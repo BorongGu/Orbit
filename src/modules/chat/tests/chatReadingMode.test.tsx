@@ -91,11 +91,49 @@ test('Escape exits reading before the task-abort shortcut, including a native ex
   } finally { document.removeEventListener('keydown', abortTask, true); }
 });
 
+test('F enters native fullscreen and Escape restores the retained transcript position and draft', async () => {
+  const view = render(<Harness />);
+  const scroll = view.getByTestId('scroll');scroll.scrollTop = 480;
+  fireEvent.keyDown(document, { key: 'f' });
+  await waitFor(() => expect(fullscreen).toBe(view.getByTestId('surface')));
+  expect(request).toHaveBeenCalledTimes(1);expect(scroll.scrollTop).toBe(480);
+  fireEvent.keyDown(document, { key: 'F', repeat: true });
+  fireEvent.keyDown(document, { key: 'f' });expect(request).toHaveBeenCalledTimes(1);
+  fireEvent.keyDown(document, { key: 'Escape' });
+  await waitFor(() => expect(view.getByText('off')).toBeTruthy());
+  expect(scroll.scrollTop).toBe(480);expect((view.getByLabelText('draft') as HTMLTextAreaElement).value).toBe('retained draft');
+});
+
+test('typing, composition and modified F keys keep their existing behavior', async () => {
+  const view = render(<Harness />);
+  for (const html of ['<input>', '<textarea></textarea>', '<select><option>First</option></select>',
+    '<div contenteditable="true"><span>Editable text</span></div>', '<div class="xterm"><span>Terminal</span></div>']) {
+    const container = document.createElement('div');container.innerHTML = html;document.body.append(container);
+    fireEvent.keyDown(container.querySelector('span') || container.firstElementChild!, { key: 'f' });container.remove();
+  }
+  const draft = view.getByLabelText('draft');draft.focus();fireEvent.keyDown(document, { key: 'f' });draft.blur();
+  for (const options of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }, { isComposing: true }, { keyCode: 229 }, { repeat: true }]) {
+    expect(fireEvent.keyDown(document, { key: 'f', ...options })).toBe(true);
+  }
+  expect(request).toHaveBeenCalledTimes(0);
+  fireEvent.keyDown(document, { key: 'F', shiftKey: true });
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+});
+
+test('inactive chat and modal dialogs retain keyboard focus until the transcript is available', async () => {
+  const view = render(<Harness active={false} />);
+  fireEvent.keyDown(document, { key: 'f' });expect(request).toHaveBeenCalledTimes(0);
+  view.rerender(<Harness />);
+  const dialog = document.createElement('div');dialog.setAttribute('role', 'dialog');dialog.setAttribute('aria-modal', 'true');document.body.append(dialog);
+  fireEvent.keyDown(document, { key: 'f' });expect(request).toHaveBeenCalledTimes(0);dialog.remove();
+  fireEvent.keyDown(document, { key: 'f' });await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+});
+
 test.each(['unsupported', 'rejected'])('page reading remains usable when fullscreen is %s', async reason => {
   if (reason === 'unsupported') Reflect.deleteProperty(HTMLElement.prototype, 'requestFullscreen');
   else request.mockRejectedValue(new Error('fullscreen denied'));
   const view = render(<Harness />);
-  fireEvent.click(view.getByText('enter'));
+  fireEvent.keyDown(document, { key: 'f' });
   await waitFor(() => expect(view.getByText('page')).toBeTruthy());
   expect(getOverlayContainer()).toBe(view.getByTestId('surface'));
   fireEvent.keyDown(document, { key: 'Escape' });

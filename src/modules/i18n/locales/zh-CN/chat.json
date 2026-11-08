@@ -122,6 +122,7 @@
   },
   "reading": {
     "enter": "全屏阅读",
+    "enterHint": "全屏阅读（F）",
     "exit": "退出阅读",
     "exitHint": "退出全屏阅读（Esc）",
     "pageOnly": "页面阅读模式"

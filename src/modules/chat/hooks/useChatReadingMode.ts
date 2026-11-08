@@ -80,6 +80,24 @@ export function useChatReadingMode(
   const suppressTaskEscape = useCallback(() => active.current || Date.now() < escapeUntil.current, []);
 
   useEffect(() => {
+    if (!isActive) return;
+    const onEnterKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'f' || event.defaultPrevented || event.repeat || event.isComposing
+        || event.keyCode === 229 || event.ctrlKey || event.metaKey || event.altKey || active.current) return;
+      const target = event.target instanceof Element ? event.target : null;
+      const editing = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="dialog"], .xterm, .monaco-editor';
+      // Single-letter shortcuts belong to the visible transcript, while editors and modal controls keep their keys.
+      if (target?.closest(editing) || document.activeElement?.closest(editing)
+        || document.querySelector('[aria-modal="true"], [role="alertdialog"]')
+        || surfaceRef.current?.closest('[hidden], [inert], [aria-hidden="true"]') || document.fullscreenElement) return;
+      event.preventDefault();
+      void enter();
+    };
+    document.addEventListener('keydown', onEnterKey);
+    return () => document.removeEventListener('keydown', onEnterKey);
+  }, [enter, isActive, surfaceRef]);
+
+  useEffect(() => {
     const surface = surfaceRef.current;
     const onFullscreenChange = () => {
       if (document.fullscreenElement === surfaceRef.current && active.current) {

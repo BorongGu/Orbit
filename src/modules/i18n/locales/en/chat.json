@@ -135,6 +135,7 @@
   },
   "reading": {
     "enter": "Fullscreen reading",
+    "enterHint": "Fullscreen reading (F)",
     "exit": "Exit reading",
     "exitHint": "Exit fullscreen reading (Esc)",
     "pageOnly": "Page reading mode"
