@@ -474,6 +474,8 @@
     "temporary": "Temporary side conversation",
     "finish": "Finish",
     "close": "Close side conversation",
+    "minimize": "Minimize side conversation",
+    "restore": "Restore BTW window",
     "resize": "Resize window: {{direction}}",
     "resizeDirection": { "n": "top edge", "s": "bottom edge", "w": "left edge", "e": "right edge", "nw": "top left corner", "ne": "top right corner", "sw": "bottom left corner", "se": "bottom right corner" },
     "input": "Side question",

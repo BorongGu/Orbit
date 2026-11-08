@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ArrowUp, MessageSquare, Square, X } from 'lucide-react';
+import { ArrowUp, MessageSquare, Minus, Square, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 
@@ -10,7 +10,7 @@ import { Markdown } from '@/modules/chat/transcript/Markdown';
 import StreamingMarkdown from '@/modules/chat/transcript/StreamingMarkdown';
 import type { BtwRequest } from '@/shared/types';
 
-type BtwPanelProps = { request: BtwRequest; active?: boolean; onClose(): void };
+type BtwPanelProps = { request: BtwRequest; active?: boolean; onMinimize?(): void; onClose(): void };
 
 const RESIZE_HANDLES = [
   { direction: 'n', className: 'inset-x-4 top-0 h-2 cursor-ns-resize' },
@@ -24,10 +24,17 @@ const RESIZE_HANDLES = [
 ] as const;
 
 /** ChatInterface keeps one panel per source session, showing the current session's window. */
-export function BtwPanel({ request, active = true, onClose }: BtwPanelProps) {
+export function BtwPanel({ request, active = true, onMinimize, onClose }: BtwPanelProps) {
   const { t } = useTranslation('chat');
   const titleId = useId();
-  const { messages, ready, busy, busySince, closed, error, label, phase, draft, setDraft, send, stop } = useBtwConversation(request);
+  // Presentation changes retain the request identity used by the native connection.
+  const conversationRequest = useMemo(() => ({
+    key: request.key, sessionId: request.sessionId, projectId: request.projectId,
+    question: request.question, model: request.model, effort: request.effort,
+    provider: request.provider, permissionMode: request.permissionMode,
+  }), [request.key, request.sessionId, request.projectId, request.question,
+    request.model, request.effort, request.provider, request.permissionMode]);
+  const { messages, ready, busy, busySince, closed, error, label, phase, draft, setDraft, send, stop } = useBtwConversation(conversationRequest);
   const { panelRef, bounds, startResize, resizeWithKeyboard, clearSavedBounds } = useBtwPanelResize(request.key);
   const markdownWorkspaceValue = useMemo(() => ({ projectId: request.projectId ?? null }), [request.projectId]);
   // Elapsed time distinguishes an active provider request from a frozen panel.
@@ -38,7 +45,7 @@ export function BtwPanel({ request, active = true, onClose }: BtwPanelProps) {
   const followRef = useRef(true);
   const compositionEndRef = useRef(0);
   const close = () => { clearSavedBounds();onClose(); };
-  useEffect(() => { if (active) inputRef.current?.focus(); }, [active]);
+  useEffect(() => { if (active && !request.minimized) inputRef.current?.focus(); }, [active, request.minimized]);
   useEffect(() => {
     if (!busy) return;
     const timer = setInterval(() => setClock(Date.now()), 1000);
@@ -52,7 +59,7 @@ export function BtwPanel({ request, active = true, onClose }: BtwPanelProps) {
     if (send(draft.trim())) { setDraft(''); followRef.current = true; }
   };
   // Keeping the component mounted preserves the source's socket while its window is hidden.
-  if (!active) return null;
+  if (!active || request.minimized) return null;
   return createPortal(<MarkdownWorkspaceContext.Provider value={markdownWorkspaceValue}><section ref={panelRef} role="dialog" aria-modal="false" aria-labelledby={titleId} data-btw-panel
     className="fixed right-3 z-[60] flex w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl sm:right-6 sm:w-[30rem]"
     style={{ bottom: 'calc(var(--keyboard-height, 0px) + 12px + env(safe-area-inset-bottom, 0px))',
@@ -63,6 +70,9 @@ export function BtwPanel({ request, active = true, onClose }: BtwPanelProps) {
       <MessageSquare aria-hidden className="h-4 w-4 text-primary/80" />
       <h2 id={titleId} className="text-sm font-medium">{t('btw.title')}</h2>
       <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">{t('btw.temporary')}</span>
+      {onMinimize && <button type="button" onClick={() => { inputRef.current?.blur(); onMinimize(); }}
+        aria-label={t('btw.minimize')} title={t('btw.minimize')}
+        className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><Minus className="h-4 w-4" /></button>}
       <button type="button" onClick={close} className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">{t('btw.finish')}</button>
       <button type="button" onClick={close} aria-label={t('btw.close')} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
     </header>

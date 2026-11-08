@@ -378,6 +378,8 @@
     "temporary": "临时对话 · 结束即清理",
     "finish": "结束",
     "close": "关闭临时对话",
+    "minimize": "最小化临时对话",
+    "restore": "恢复 BTW 窗口",
     "resize": "调整窗口大小：{{direction}}",
     "resizeDirection": { "n": "上边", "s": "下边", "w": "左边", "e": "右边", "nw": "左上角", "ne": "右上角", "sw": "左下角", "se": "右下角" },
     "input": "旁支问题",

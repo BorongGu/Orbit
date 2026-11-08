@@ -76,6 +76,8 @@ type ChatComposerProps = {
   tokenBudget: Record<string, unknown> | null;
   onShowTokenUsage: () => void;
   onToggleCommandMenu: () => void;
+  /** Restores this session's minimized BTW window inside the existing composer toolbar. */
+  onRestoreBtw?: () => void;
   hasInput: boolean;
   onClearInput: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => void;
@@ -159,6 +161,7 @@ export default function ChatComposer({
   tokenBudget,
   onShowTokenUsage,
   onToggleCommandMenu,
+  onRestoreBtw,
   hasInput,
   onClearInput,
   onSubmit,
@@ -492,6 +495,12 @@ export default function ChatComposer({
             >
               <MessageSquareIcon />
             </PromptInputButton>
+
+            {onRestoreBtw && <PromptInputButton onClick={onRestoreBtw}
+              aria-label={t('btw.restore')} tooltip={{ content: t('btw.restore') }}
+              className="w-auto min-w-8 px-1.5 text-[10px] font-semibold">
+              BTW
+            </PromptInputButton>}
 
             {hasInput && (
               <PromptInputButton

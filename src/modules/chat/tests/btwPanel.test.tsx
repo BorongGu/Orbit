@@ -36,7 +36,8 @@ vi.mock('@/modules/chat/hooks/useChatComposerState', () => ({ useChatComposerSta
   return { input: '', textareaRef: { current: null } };
 } }));
 vi.mock('@/modules/chat/transcript/ChatMessagesPane', () => ({ default: () => null }));
-vi.mock('@/modules/chat/composer/ChatComposer', () => ({ default: () => null }));
+vi.mock('@/modules/chat/composer/ChatComposer', () => ({ default: ({ onRestoreBtw }: { onRestoreBtw?: () => void }) =>
+  onRestoreBtw ? <button type="button" onClick={onRestoreBtw}>恢复 BTW 窗口</button> : null }));
 vi.mock('@/modules/chat/composer/CodexGoalPanel', () => ({ CodexGoalPanel: () => null }));
 vi.mock('@/modules/chat/modals/CommandResultModal', () => ({ default: () => null }));
 const instances: FakeSocket[] = [];
@@ -68,6 +69,65 @@ beforeEach(() => {
   });
 });
 afterEach(() => { cleanup();vi.useRealTimers();vi.unstubAllGlobals(); });
+
+test('minimizing hides the portal while its native request, reply, draft and size stay alive', () => {
+  const onMinimize = vi.fn();
+  const view = render(<BtwPanel request={REQUEST} onMinimize={onMinimize} onClose={() => {}} />);
+  const socket = instances[0];
+  act(() => { socket.open();socket.frame({ kind: 'btw_ready' });
+    socket.frame({ kind: 'btw_message', id: 'answer', role: 'assistant', content: 'Answer before minimize' }); });
+  const panel = view.getByRole('dialog');mockPanelBounds(panel);
+  fireEvent.change(view.getByRole('textbox'), { target: { value: 'Saved follow-up' } });
+  const bounds = panelBounds(panel);
+  fireEvent.click(view.getByRole('button', { name: /Minimize side conversation|最小化临时对话/ }));
+  assert.equal(onMinimize.mock.calls.length, 1);
+  view.rerender(<BtwPanel request={{ ...REQUEST, minimized: true }} onMinimize={onMinimize} onClose={() => {}} />);
+  assert.equal(view.queryByRole('dialog'), null);
+  assert.equal(document.querySelector('[data-btw-panel]'), null);
+  assert.equal(socket.readyState, FakeSocket.OPEN);
+  assert.equal(socket.sent.some(message => message.type === 'finish'), false);
+  act(() => { socket.frame({ kind: 'btw_message', id: 'answer', role: 'assistant', content: 'Answer completed while minimized' }); });
+  view.rerender(<BtwPanel request={{ ...REQUEST, minimized: false }} onMinimize={onMinimize} onClose={() => {}} />);
+  assert.equal(instances.length, 1);
+  assert.ok(view.getByText('Answer completed while minimized'));
+  assert.equal((view.getByRole('textbox') as HTMLTextAreaElement).value, 'Saved follow-up');
+  assert.deepEqual(panelBounds(view.getByRole('dialog')), bounds);
+});
+
+test('the parent composer restores only its own minimized BTW window after navigation and refresh', () => {
+  const props = { isActive: true, selectedProject: { projectId: 'source-project', displayName: 'Source', fullPath: '/source' },
+    selectedSession: { id: 'parent', provider: 'codex' as const }, ws: null, sendMessage() {} };
+  const view = render(<ChatInterface {...props} />);
+  act(() => { composer.openBtw('Side question'); });
+  const socket = instances[0];
+  act(() => { socket.open();socket.frame({ kind: 'btw_ready' });
+    socket.frame({ kind: 'btw_message', id: 'answer', role: 'assistant', content: 'Reply before hiding' }); });
+  fireEvent.change(view.getByRole('textbox'), { target: { value: 'Draft before hiding' } });
+  fireEvent.click(view.getByRole('button', { name: /Minimize side conversation|最小化临时对话/ }));
+  assert.equal(view.queryByRole('dialog'), null);
+  assert.ok(view.getByRole('button', { name: '恢复 BTW 窗口' }));
+  assert.equal(JSON.parse(sessionStorage.getItem('cloudcli-btw-window')!)[0].minimized, true);
+  const otherProps = { ...props, selectedSession: { id: 'other', provider: 'opencode' as const } };
+  view.rerender(<ChatInterface {...otherProps} />);
+  assert.equal(view.queryByRole('button', { name: '恢复 BTW 窗口' }), null);
+  act(() => { socket.frame({ kind: 'btw_message', id: 'answer', role: 'assistant', content: 'Reply during navigation' }); });
+  view.rerender(<ChatInterface {...props} />);
+  assert.ok(view.getByRole('button', { name: '恢复 BTW 窗口' }));
+  assert.equal(socket.readyState, FakeSocket.OPEN);
+  act(() => { window.dispatchEvent(new Event('pagehide')); });view.unmount();
+
+  const restored = render(<ChatInterface {...props} />);
+  assert.equal(restored.queryByRole('dialog'), null);
+  assert.ok(restored.getByRole('button', { name: '恢复 BTW 窗口' }));
+  const resumed = instances[1];
+  act(() => { resumed.open();resumed.frame({ kind: 'btw_ready' });
+    resumed.frame({ kind: 'btw_message', id: 'answer', role: 'assistant', content: 'Reply after refresh' }); });
+  assert.equal(resumed.sent[0].type, 'resume');
+  fireEvent.click(restored.getByRole('button', { name: '恢复 BTW 窗口' }));
+  assert.ok(restored.getByText('Reply after refresh'));
+  assert.equal((restored.getByRole('textbox') as HTMLTextAreaElement).value, 'Draft before hiding');
+  assert.equal(instances.length, 2);
+});
 
 test('BTW streams one row per native item, accepts a follow-up and cleans up on close', async () => {
   const onClose = vi.fn();const view = render(<BtwPanel request={REQUEST} onClose={onClose} />);

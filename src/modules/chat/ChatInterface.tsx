@@ -222,6 +222,11 @@ function ChatInterface({
     } catch { /* The live window continues when browser storage is restricted. */ }
   }, [btwRequests]);
   const closeBtw = useCallback((key: string) => setBtwRequests(requests => requests.filter(request => request.key !== key)), []);
+  const setBtwMinimized = useCallback((key: string, minimized: boolean) => {
+    setBtwRequests(requests => requests.map(request => request.key === key ? { ...request, minimized } : request));
+  }, []);
+  const currentBtwRequest = btwRequests.find(request => request.sessionId === (selectedSession?.id || currentSessionId)
+    && request.provider === provider);
   const openBtw = useCallback((question: string) => {
     if (provider !== 'codex' && provider !== 'opencode') return;
     const sessionId = selectedSession?.id || currentSessionId;
@@ -617,6 +622,7 @@ function ChatInterface({
           onScheduleMessage={handleScheduleMessage}
           onCancelScheduledMessage={cancelScheduledMessage}
           onToggleCommandMenu={handleToggleCommandMenu}
+          onRestoreBtw={currentBtwRequest?.minimized ? () => setBtwMinimized(currentBtwRequest.key, false) : undefined}
           hasInput={Boolean(input.trim())}
           onClearInput={handleClearInput}
           onSubmit={handleSubmit}
@@ -673,6 +679,7 @@ function ChatInterface({
 
       {btwRequests.map(request => <BtwPanel key={request.key} request={request}
         active={isActive && !reading.isReading && request.sessionId === (selectedSession?.id || currentSessionId) && request.provider === provider}
+        onMinimize={() => setBtwMinimized(request.key, true)}
         onClose={() => closeBtw(request.key)} />)}
       {contextTransferCommand && <ContextTransferDialog source={contextTransferCommand} onClose={() => setContextTransferCommand(null)} onNavigate={id => onNavigateToSession?.(id)} onSourceActivity={observeContextPreparation} />}
       <CommandResultModal
