@@ -9,6 +9,9 @@ BTW side conversations. The toolbar and note dialog mount inside the active
 reading surface so browser fullscreen and keyboard focus retain access to them.
 BTW excerpts retain `sourceKind: "btw"`, their conversation id and parent session;
 the source label includes **BTW**. Saved excerpts survive closing the side window.
+Opening the library detaches the BTW viewer and preserves its reply, draft and
+resume identity. Returning to the workspace reattaches to that same conversation.
+Explicitly closing or replacing the BTW window finishes its native runtime.
 
 **已保存 · 查看笔记** opens the saved note over the source transcript. The sidebar's
 **笔记** entry opens the cross-session library at `/notes`. Notes can be searched,

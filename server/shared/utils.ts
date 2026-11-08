@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import type { ChildProcess } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
 import fs from 'node:fs';
 import {
   access,
@@ -42,6 +44,35 @@ import type {
  * Environment variables must be loaded before this module is evaluated.
  */
 export const IS_PLATFORM = process.env.VITE_IS_PLATFORM === 'true';
+
+// ---------------------------
+//----------------- OWNED PROCESS CLEANUP ------------
+/**
+ * Codex/OpenCode BTW adapters use this for children launched in dedicated POSIX
+ * process groups. Keep the escalation deadline until the entire group exits:
+ * the direct child's close event can precede a tool that ignores SIGTERM.
+ * `exited` must settle when the direct child's stdio closes (including spawn
+ * failure). Call once per owned child; Windows retains direct-child cleanup.
+ */
+export async function terminateOwnedProcessGroup(child: ChildProcess, exited: Promise<unknown>, graceMs = 1500): Promise<void> {
+  let closed = false;
+  void exited.then(() => { closed = true; }, () => { closed = true; });
+  const grouped = process.platform !== 'win32' && child.pid !== undefined;
+  const signal = (value: NodeJS.Signals) => {
+    try { if (grouped) process.kill(-child.pid!, value); else child.kill(value); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+  };
+  const groupAlive = () => {
+    if (!grouped) return !closed;
+    try { process.kill(-child.pid!, 0);return true; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false;throw error; }
+  };
+  signal('SIGTERM');
+  const deadline = Date.now() + graceMs;
+  while (groupAlive() && Date.now() < deadline) await delay(Math.min(25, Math.max(1, deadline - Date.now())));
+  if (groupAlive()) signal('SIGKILL');
+  await exited;
+}
 
 // ---------------------------
 //----------------- CODEX CONTEXT DEFAULTS ------------

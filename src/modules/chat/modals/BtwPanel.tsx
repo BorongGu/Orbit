@@ -12,7 +12,8 @@ import type { BtwRequest } from '@/shared/types';
 import { contextTransferApi } from '@/shared/api';
 import { SelectionNoteAction } from '@/modules/notes';
 
-type BtwPanelProps = { request: BtwRequest; active?: boolean; onMinimize?(): void; onClose(): void; onOpenNote?(id: string): void };
+type BtwPanelProps = { request: BtwRequest; active?: boolean; onMinimize?(): void; onClose(): void; onOpenNote?(id: string): void;
+  onRegisterFinish?(key: string, finish: () => void): () => void };
 
 const RESIZE_HANDLES = [
   { direction: 'n', className: 'inset-x-4 top-0 h-2 cursor-ns-resize' },
@@ -26,17 +27,18 @@ const RESIZE_HANDLES = [
 ] as const;
 
 /** ChatInterface keeps one panel per source session, showing the current session's window. */
-export function BtwPanel({ request, active = true, onMinimize, onClose, onOpenNote }: BtwPanelProps) {
+export function BtwPanel({ request, active = true, onMinimize, onClose, onOpenNote, onRegisterFinish }: BtwPanelProps) {
   const { t } = useTranslation('chat');
   const titleId = useId();
   // Presentation changes retain the request identity used by the native connection.
   const conversationRequest = useMemo(() => ({
     key: request.key, sessionId: request.sessionId, projectId: request.projectId,
     question: request.question, model: request.model, effort: request.effort,
-    provider: request.provider, permissionMode: request.permissionMode,
+    provider: request.provider, permissionMode: request.permissionMode, resumeOnly: request.resumeOnly,
   }), [request.key, request.sessionId, request.projectId, request.question,
-    request.model, request.effort, request.provider, request.permissionMode]);
-  const { messages, ready, busy, busySince, closed, error, label, phase, draft, setDraft, send, stop } = useBtwConversation(conversationRequest);
+    request.model, request.effort, request.provider, request.permissionMode, request.resumeOnly]);
+  const { messages, ready, busy, busySince, closed, error, label, phase, draft, setDraft, send, stop, finish } = useBtwConversation(conversationRequest);
+  useEffect(() => onRegisterFinish?.(request.key, finish), [onRegisterFinish, request.key, finish]);
   const { panelRef, bounds, startResize, resizeWithKeyboard, clearSavedBounds } = useBtwPanelResize(request.key);
   const markdownWorkspaceValue = useMemo(() => ({ projectId: request.projectId ?? null }), [request.projectId]);
   // Elapsed time distinguishes an active provider request from a frozen panel.
@@ -50,7 +52,7 @@ export function BtwPanel({ request, active = true, onMinimize, onClose, onOpenNo
   const scrollRef = useRef<HTMLDivElement>(null);
   const followRef = useRef(true);
   const compositionEndRef = useRef(0);
-  const close = () => { clearSavedBounds();onClose(); };
+  const close = () => { finish();clearSavedBounds();onClose(); };
   useEffect(() => { if (active && !request.minimized) inputRef.current?.focus(); }, [active, request.minimized]);
   useEffect(() => {
     if (!busy) return;

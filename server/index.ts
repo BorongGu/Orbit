@@ -55,6 +55,7 @@ import browserUseMcpRoutes from './modules/browser-use/browser-use-mcp.routes.js
 import { browserUseService } from './modules/browser-use/browser-use.service.js';
 import { contextTransferDb, initializeDatabase, notesDb, sessionsDb } from './modules/database/index.js';
 import { notesRoutes } from './modules/notes/index.js';
+import { btwRegistry } from './modules/websocket/index.js';
 import { contextTransferRoutes, contextBridgeRoutes, initializeContextRequests, closeContextRequests } from './modules/context-transfer/index.js';
 import { configureWebPush } from './modules/notifications/index.js';
 import { groupsRoutes, groupBridgeRoutes, initializeGroupDispatcher, closeGroupDispatcher } from './modules/groups/index.js';
@@ -393,10 +394,18 @@ async function startServer() {
 
         await closeSessionsWatcher();
         closeScheduledMessageDispatcher();
-        // Clean up plugin processes on shutdown
+        // Drain owned side runtimes once, even when several termination signals arrive.
+        let shuttingDown = false;
         const shutdownRuntimeServices = async () => {
+            if (shuttingDown) return;
+            shuttingDown = true;
             closeGroupDispatcher();
             closeContextRequests();
+            try {
+                await btwRegistry.shutdown();
+            } catch (err) {
+                console.error('[BTW] Error closing side conversations during shutdown:', getErrorMessage(err));
+            }
             try {
                 await browserUseService.stopAllSessions();
             } catch (err) {

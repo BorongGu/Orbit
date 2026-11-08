@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import readline from 'node:readline';
 
+import { terminateOwnedProcessGroup } from '@/shared/index.js';
+
 /** Used by the BTW service: each window owns an app-server and its in-memory fork. */
 export class CodexBtwConnection extends EventEmitter {
   private readonly child;
@@ -90,17 +92,8 @@ export class CodexBtwConnection extends EventEmitter {
     this.closing = (async () => {
       this.stopped = true;
       this.fail(new Error('The temporary conversation has ended.'));
-      const kill = (signal: NodeJS.Signals) => {
-        try {
-          if (process.platform !== 'win32' && this.child.pid) process.kill(-this.child.pid, signal);
-          else this.child.kill(signal);
-        } catch { /* The owned process has already exited. */ }
-      };
-      kill('SIGTERM');
-      const force = setTimeout(() => kill('SIGKILL'), 1500);
-      force.unref?.();
-      await this.exited;
-      clearTimeout(force); this.reader.close();
+      try { await terminateOwnedProcessGroup(this.child, this.exited); }
+      finally { this.reader.close(); }
     })();
     return this.closing;
   }

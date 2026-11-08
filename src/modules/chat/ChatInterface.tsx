@@ -72,7 +72,7 @@ function readSavedBtwRequests(): BtwRequest[] {
     for (const request of candidates) {
       if (request && (request.provider === 'codex' || request.provider === 'opencode')
         && ['key', 'sessionId', 'question', 'model', 'effort'].every(field => typeof request[field] === 'string')
-        && request.key && request.sessionId) requests.set(`${request.provider}:${request.sessionId}`, request);
+        && request.key && request.sessionId) requests.set(`${request.provider}:${request.sessionId}`, { ...request, resumeOnly: true });
     }
     return [...requests.values()];
   } catch { /* A new window remains available when browser storage is restricted. */ }
@@ -216,6 +216,12 @@ function ChatInterface({
 
   // Each source retains its own native connection, transcript, draft and bounds across navigation.
   const [btwRequests, setBtwRequests] = useState<BtwRequest[]>(readSavedBtwRequests);
+  // Replacing a source's window explicitly finishes its old runtime before mounting the replacement.
+  const btwFinishers = useRef(new Map<string, () => void>());
+  const registerBtwFinish = useCallback((key: string, finish: () => void) => {
+    btwFinishers.current.set(key, finish);
+    return () => { if (btwFinishers.current.get(key) === finish) btwFinishers.current.delete(key); };
+  }, []);
   useEffect(() => {
     try {
       if (btwRequests.length) sessionStorage.setItem(BTW_WINDOW_STORAGE_KEY, JSON.stringify(btwRequests));
@@ -237,8 +243,11 @@ function ChatInterface({
     }
     const request: BtwRequest = { key: `${Date.now()}-${Math.random()}`, sessionId, projectId: selectedProject?.projectId ?? null, question,
       model: currentProviderModel, effort: currentProviderEffort, provider, permissionMode };
+    for (const previous of btwRequests) {
+      if (previous.sessionId === sessionId && previous.provider === provider) btwFinishers.current.get(previous.key)?.();
+    }
     setBtwRequests(requests => [...requests.filter(previous => previous.sessionId !== sessionId || previous.provider !== provider), request]);
-  }, [selectedSession?.id, selectedProject?.projectId, currentSessionId, currentProviderModel, currentProviderEffort, provider, permissionMode, addMessage, t]);
+  }, [selectedSession?.id, selectedProject?.projectId, currentSessionId, currentProviderModel, currentProviderEffort, provider, permissionMode, addMessage, t, btwRequests]);
 
   // Capture the source at command invocation so navigation cannot retarget an open handoff dialog.
   const [contextTransferCommand, setContextTransferCommand] = useState<ContextTransferCommand | null>(null);
@@ -682,6 +691,7 @@ function ChatInterface({
       </div>
 
       {btwRequests.map(request => <BtwPanel key={request.key} request={request}
+        onRegisterFinish={registerBtwFinish}
         onOpenNote={setOpenNoteId}
         active={isActive && !reading.isReading && request.sessionId === (selectedSession?.id || currentSessionId) && request.provider === provider}
         onMinimize={() => setBtwMinimized(request.key, true)}

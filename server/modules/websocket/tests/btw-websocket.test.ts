@@ -116,3 +116,37 @@ test('invalid or excessive side questions are rejected before launching a proces
     { type: 'start', sessionId: 'parent', conversationId: {} }, { type: 'resume', conversationId: '' }]) send(ws, data);
   await settle();assert.equal(f.inputs.length, 0);assert.equal(ws.frames.length, 5);
 });
+
+test('shutdown drains attached, detached and already-closing sessions once and rejects new forks', async () => {
+  const started: string[] = [], closed: string[] = [];const release = new Map<string, () => void>();
+  const registry = createBtwRegistry((input, emit) => ({
+    async start() { started.push(input.sessionId);emit({ kind: 'btw_ready', threadId: input.sessionId, model: '' }); },
+    async send() {}, async stop() {},
+    async close() { closed.push(input.sessionId);await new Promise<void>(resolve => release.set(input.sessionId, resolve));emit({ kind: 'btw_closed' }); },
+  }));
+  for (const id of ['attached', 'detached', 'closing']) {
+    const detach = registry.attach('owner', id, () => {}, { sessionId: id });
+    if (id === 'detached') detach();
+  }
+  await settle();
+  const finishing = registry.finish('owner', 'closing');await settle();
+  let drained = false;const shutdown = registry.shutdown();assert.equal(registry.shutdown(), shutdown);
+  void shutdown.then(() => { drained = true; });await settle();
+  assert.deepEqual(started.sort(), ['attached', 'closing', 'detached']);
+  assert.deepEqual(closed.sort(), ['attached', 'closing', 'detached']);
+  assert.throws(() => registry.attach('owner', 'late', () => {}, { sessionId: 'late' }), /restarting/);
+  release.get('attached')!();release.get('detached')!();await settle();assert.equal(drained, false);
+  release.get('closing')!();await finishing;await shutdown;assert.equal(drained, true);
+});
+
+test('shutdown waits for every cleanup even when one session fails and cancels pending startup', async () => {
+  let starts = 0;let release!: () => void;
+  const registry = createBtwRegistry(input => ({
+    async start() { starts++; },async send() {},async stop() {},
+    async close() { if (input.sessionId === 'failure') throw new Error('cleanup failed');await new Promise<void>(resolve => { release = resolve; }); },
+  }));
+  registry.attach('owner', 'failure', () => {}, { sessionId: 'failure' });
+  registry.attach('owner', 'slow', () => {}, { sessionId: 'slow' });
+  const shutdown = registry.shutdown();const rejected = assert.rejects(shutdown, AggregateError);
+  await settle();assert.equal(starts, 0);release();await rejected;
+});

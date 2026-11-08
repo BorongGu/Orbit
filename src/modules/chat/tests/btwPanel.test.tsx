@@ -392,10 +392,54 @@ test('the previous single-window checkpoint migrates to its source session', () 
     selectedSession: { id: 'other', provider: 'codex' as const }, ws: null, sendMessage() {} };
   const view = render(<ChatInterface {...props} />);
   assert.equal(Boolean(view.queryByRole('dialog')), false);
-  assert.deepEqual(JSON.parse(sessionStorage.getItem('cloudcli-btw-window')!), [REQUEST]);
+  assert.deepEqual(JSON.parse(sessionStorage.getItem('cloudcli-btw-window')!), [{ ...REQUEST, resumeOnly: true }]);
   view.rerender(<ChatInterface {...props} selectedSession={{ id: REQUEST.sessionId, provider: 'codex' }} />);
   assert.ok(view.getByRole('dialog'));assert.equal(instances.length, 1);
-  act(() => { instances[0].open(); });assert.equal(instances[0].sent[0].sessionId, REQUEST.sessionId);
+  act(() => { instances[0].open(); });assert.deepEqual(instances[0].sent[0], { type: 'resume', conversationId: REQUEST.key });
+});
+
+test.each(['codex', 'opencode'] as const)('leaving and returning to the workspace resumes the %s fork with its answer and draft', provider => {
+  const props = { isActive: true, selectedProject: { projectId: 'project', fullPath: '/source', displayName: 'Source' },
+    selectedSession: { id: 'parent', provider }, ws: null, sendMessage() {} };
+  const first = render(<ChatInterface {...props} />);
+  act(() => { composer.openBtw('Ask exactly once'); });
+  act(() => { instances[0].open();instances[0].frame({ kind: 'btw_ready' });
+    instances[0].frame({ kind: 'btw_message', id: 'answer', role: 'assistant', content: 'Retained answer' }); });
+  fireEvent.change(first.getByRole('textbox'), { target: { value: 'Retained draft' } });
+  const id = instances[0].sent[0].conversationId;
+  first.unmount();
+  assert.equal(instances[0].sent.some(message => message.type === 'finish'), false);
+  assert.ok(sessionStorage.getItem(`cloudcli-btw-conversation:${id}`));
+  const restored = render(<ChatInterface {...props} />);
+  assert.ok(restored.getByText('Retained answer'));assert.equal((restored.getByRole('textbox') as HTMLTextAreaElement).value, 'Retained draft');
+  act(() => { instances[1].open(); });
+  assert.deepEqual(instances[1].sent[0], { type: 'resume', conversationId: id });
+  fireEvent.click(restored.getByRole('button', { name: /Close side conversation|关闭临时对话/ }));
+  assert.equal(instances[1].sent.at(-1).type, 'finish');
+  assert.equal(sessionStorage.getItem(`cloudcli-btw-conversation:${id}`), null);
+  assert.equal(sessionStorage.getItem('cloudcli-btw-window'), null);
+});
+
+test('navigation before the first server acknowledgement preserves the submitted window identity', () => {
+  const first = render(<BtwPanel request={REQUEST} onClose={() => {}} />);
+  act(() => { instances[0].open(); });first.unmount();
+  render(<BtwPanel request={REQUEST} onClose={() => {}} />);act(() => { instances[1].open(); });
+  assert.equal(instances[0].sent[0].type, 'start');
+  assert.deepEqual(instances[1].sent[0], { type: 'resume', conversationId: REQUEST.key });
+});
+
+test('replacing a source window explicitly finishes the old fork before starting the new question', () => {
+  const props = { isActive: true, selectedProject: { projectId: 'project', fullPath: '/source', displayName: 'Source' },
+    selectedSession: { id: 'parent', provider: 'codex' as const }, ws: null, sendMessage() {} };
+  render(<ChatInterface {...props} />);
+  act(() => { composer.openBtw('First question'); });
+  act(() => { instances[0].open();instances[0].frame({ kind: 'btw_ready' }); });
+  const oldId = instances[0].sent[0].conversationId;
+  act(() => { composer.openBtw('Replacement question'); });
+  act(() => { instances[1].open(); });
+  assert.equal(instances[0].sent.at(-1).type, 'finish');assert.equal(instances[0].readyState, FakeSocket.CLOSED);
+  assert.equal(sessionStorage.getItem(`cloudcli-btw-conversation:${oldId}`), null);
+  assert.equal(instances[1].sent[0].type, 'start');assert.equal(instances[1].sent[0].question, 'Replacement question');
 });
 
 test('a server-expired fork displays its saved answer and error without replaying the question', () => {

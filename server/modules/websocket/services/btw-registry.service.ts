@@ -10,6 +10,7 @@ type Conversation = {
   status: Extract<BtwEvent, { kind: 'btw_status' }>;
   error?: Extract<BtwEvent, { kind: 'btw_error' }>;
   closed: boolean;
+  closing?: Promise<void>;
   sharedThroughId?: string;
   lastDeliveryId?: string;
   timer?: ReturnType<typeof setTimeout>;
@@ -18,6 +19,9 @@ type Conversation = {
 /** The BTW socket handler uses this registry to reconnect a user's window to its existing native fork. */
 export function createBtwRegistry(createSession = createBtwSession, retentionMs = 30 * 60_000) {
   const conversations = new Map<string, Conversation>();
+  const pendingCloses = new Set<Promise<void>>();
+  let draining = false;
+  let shutdown: Promise<void> | null = null;
   const key = (owner: string, id: string) => JSON.stringify([owner, id]);
   const find = (owner: string, id: string) => {
     const entry = conversations.get(key(owner, id));
@@ -25,6 +29,7 @@ export function createBtwRegistry(createSession = createBtwSession, retentionMs 
     return entry;
   };
   const publish = (entry: Conversation, event: BtwEvent) => {
+    if (entry.closing && event.kind !== 'btw_closed') return;
     if (event.kind === 'btw_ready') entry.ready = event;
     if (event.kind === 'btw_message') { entry.messages.set(event.id, event);entry.error = undefined; }
     if (event.kind === 'btw_error') entry.error = event;
@@ -38,16 +43,25 @@ export function createBtwRegistry(createSession = createBtwSession, retentionMs 
     }
     for (const listener of entry.listeners) listener(event);
   };
+  const closeEntry = (entry: Conversation): Promise<void> => {
+    if (entry.closing) return entry.closing;
+    clearTimeout(entry.timer);
+    entry.closing = Promise.resolve().then(() => entry.session.close()).finally(() => {
+      try { publish(entry, { kind: 'btw_closed' }); }
+      finally { entry.listeners.clear();entry.messages.clear();pendingCloses.delete(entry.closing!); }
+    });
+    pendingCloses.add(entry.closing);
+    return entry.closing;
+  };
   const finish = async (owner: string, id: string) => {
     const entry = conversations.get(key(owner, id));
     if (!entry) return;
     conversations.delete(key(owner, id));
-    clearTimeout(entry.timer);
-    try { await entry.session.close(); }
-    finally { publish(entry, { kind: 'btw_closed' });entry.listeners.clear();entry.messages.clear(); }
+    await closeEntry(entry);
   };
   return {
     attach(owner: string, id: string, emit: (event: BtwEvent) => void, input?: BtwInput) {
+      if (draining) throw new Error('Orbit is restarting. Reconnect after the service is ready.');
       let entry = conversations.get(key(owner, id));
       if (entry && input && entry.sourceId !== input.sessionId) throw new Error('This BTW window belongs to another source conversation.');
       if (!entry) {
@@ -59,9 +73,9 @@ export function createBtwRegistry(createSession = createBtwSession, retentionMs 
         entry = fresh;
         conversations.set(key(owner, id), entry);
         // Register first so a refresh racing native startup attaches to this same fork.
-        void Promise.resolve().then(() => { if (!fresh.closed) return fresh.session.start(); }).catch(error => {
+        void Promise.resolve().then(() => { if (!fresh.closed && !fresh.closing) return fresh.session.start(); }).catch(error => {
           publish(fresh, { kind: 'btw_error', message: error instanceof Error ? error.message : String(error) });
-          void fresh.session.close().finally(() => publish(fresh, { kind: 'btw_closed' })).catch(() => {});
+          void closeEntry(fresh).catch(() => {});
         });
       }
       const current = entry;
@@ -101,6 +115,18 @@ export function createBtwRegistry(createSession = createBtwSession, retentionMs 
       entry.lastDeliveryId = deliveryId;
     },
     finish,
+    /** Server shutdown drains attached, detached and already-closing native runtimes before exit. */
+    shutdown(): Promise<void> {
+      if (shutdown) return shutdown;
+      draining = true;
+      for (const entry of conversations.values()) void closeEntry(entry);
+      conversations.clear();
+      shutdown = Promise.allSettled([...pendingCloses]).then(results => {
+        const errors = results.filter(result => result.status === 'rejected');
+        if (errors.length) throw new AggregateError(errors.map(result => result.reason), 'BTW shutdown cleanup failed.');
+      });
+      return shutdown;
+    },
   };
 }
 

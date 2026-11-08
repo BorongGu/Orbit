@@ -9,8 +9,9 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 
 import { getOpenCodeDatabasePath, getOpenCodeMajorVersion } from '@/shared/utils.js';
+import { terminateOwnedProcessGroup } from '@/shared/index.js';
 
-type OwnedProcess = { child: ChildProcess; done: Promise<{ code: number | null; error: Error | null }> };
+type OwnedProcess = { child: ChildProcess; done: Promise<{ code: number | null; error: Error | null }>; cleanup?: Promise<void> };
 
 /** The OpenCode BTW service uses this private server and data store to own a disposable native fork. */
 export class OpenCodeBtwConnection extends EventEmitter {
@@ -39,11 +40,19 @@ export class OpenCodeBtwConnection extends EventEmitter {
       detached: process.platform !== 'win32', stdio: ['ignore', stdout ?? 'pipe', 'pipe'] });
     let error: Error | null = null;
     child.on('error', cause => { error = cause; });
-    const owned = { child, done: new Promise<{ code: number | null; error: Error | null }>(resolve => {
-      child.once('close', code => { this.processes.delete(owned); resolve({ code, error }); });
+    const owned: OwnedProcess = { child, done: new Promise<{ code: number | null; error: Error | null }>(resolve => {
+      child.once('close', code => { resolve({ code, error }); });
     }) };
     this.processes.add(owned);
+    // A server can exit before its tools. Retire ownership after group cleanup.
+    void owned.done.then(() => this.reap(owned)).catch(() => {});
     return owned;
+  }
+
+  private reap(owned: OwnedProcess): Promise<void> {
+    if (!owned.cleanup) owned.cleanup = terminateOwnedProcessGroup(owned.child, owned.done)
+      .finally(() => { this.processes.delete(owned); });
+    return owned.cleanup;
   }
 
   private kill(owned: OwnedProcess, signal: NodeJS.Signals): void {
@@ -235,13 +244,12 @@ export class OpenCodeBtwConnection extends EventEmitter {
     if (this.closing) return this.closing;
     this.stopped = true;this.controller.abort();
     this.closing = (async () => {
-      const children = [...this.processes];children.forEach(child => this.kill(child, 'SIGTERM'));
-      const force = setTimeout(() => children.forEach(child => this.kill(child, 'SIGKILL')), 1500);
-      try {
-        await this.preparing?.catch(() => {});
-        await Promise.all(children.map(child => child.done));
-        if (this.directory) await rm(this.directory, { recursive: true, force: true });
-      } finally { clearTimeout(force); }
+      const cleanup = [...this.processes].map(child => this.reap(child));
+      const results = await Promise.allSettled([this.preparing?.catch(() => {}), ...cleanup]);
+      if (this.directory) await rm(this.directory, { recursive: true, force: true });
+      this.v2Requests.clear();this.v2Texts.clear();
+      const errors = results.filter(result => result.status === 'rejected');
+      if (errors.length) throw new AggregateError(errors.map(result => result.reason), 'OpenCode side process cleanup failed.');
     })();
     return this.closing;
   }

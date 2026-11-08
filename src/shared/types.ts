@@ -99,6 +99,8 @@ export type CodexGoal = {
 export type BtwRequest = {
   key: string;
   sessionId: string;
+  /** Restored window descriptors only reattach, including legacy descriptors with a missing checkpoint. */
+  resumeOnly?: boolean;
   /** Hides the window while its provider connection and transcript continue in the background. */
   minimized?: boolean;
   /** Resolves relative markdown files against the project captured when the window opens. */

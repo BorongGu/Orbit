@@ -24,7 +24,7 @@ export function useBtwConversation(request: BtwRequest) {
   // A single checkpoint restores the transcript, draft and attachment identity together.
   const [snapshot, setSnapshot] = useState<SavedConversation>(() => {
     const saved = readConversation(storageKey);
-    return { registered: saved?.registered ?? false, draft: saved?.draft ?? '', view: {
+    return { registered: Boolean(saved?.registered || request.resumeOnly), draft: saved?.draft ?? '', view: {
       messages: saved?.view.messages ?? [], ready: false, busy: !saved?.view.closed,
       busySince: saved?.view.busySince ?? Date.now(), closed: saved?.view.closed ?? false,
       error: saved?.view.error ?? '', label: '', phase: saved?.registered ? 'reconnecting' : '',
@@ -52,6 +52,17 @@ export function useBtwConversation(request: BtwRequest) {
     try { sessionStorage.setItem(storageKey, JSON.stringify(checkpointRef.current)); }
     catch { /* A full browser store leaves the active native conversation usable. */ }
   }, [storageKey]);
+  // Explicit close/replacement owns native disposal; route unmount only detaches the viewer.
+  const finish = useCallback(() => {
+    if (removedRef.current) return;
+    finishedRef.current = true;removedRef.current = true;
+    const socket = socketRef.current;
+    try { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'finish' })); }
+    finally {
+      if (socket && socket.readyState !== WebSocket.CONNECTING) socket.close();
+      try { sessionStorage.removeItem(storageKey); } catch { /* The local checkpoint is best effort. */ }
+    }
+  }, [storageKey]);
   useEffect(() => {
     const timer = setTimeout(persist, 250);
     return () => { clearTimeout(timer); };
@@ -72,7 +83,10 @@ export function useBtwConversation(request: BtwRequest) {
       socket.onopen = () => {
         if (disposed || unloading || finishedRef.current) { socket.close();return; }
         retryDelay = 500;
-        socket.send(JSON.stringify(checkpointRef.current.registered
+        const resumeExisting = checkpointRef.current.registered;
+        // Record the attempt before sending, including the interval before the first server acknowledgement.
+        updateSnapshot(current => ({ ...current, registered: true }));persist();
+        socket.send(JSON.stringify(resumeExisting
           ? { type: 'resume', conversationId: request.key }
           : { type: 'start', conversationId: request.key, sessionId: request.sessionId, question: request.question,
             model: request.model, effort: request.effort, permissionMode: request.permissionMode }));
@@ -128,14 +142,13 @@ export function useBtwConversation(request: BtwRequest) {
       window.removeEventListener('online', resume);
       document.removeEventListener('visibilitychange', resume);
       const socket = socketRef.current;
-      // A refresh detaches; component replacement or an explicit close finishes the old window.
-      if (!unloading && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'finish' }));
+      // Page navigation and refresh both preserve the checkpoint for a resume-only reattachment.
+      persist();
       if (socket) {
         socket.onopen = () => socket.close();
         if (socket.readyState !== WebSocket.CONNECTING) socket.close();
       }
       socketRef.current = null;
-      if (!unloading) { removedRef.current = true;try { sessionStorage.removeItem(storageKey); } catch {} }
     };
   }, [request, storageKey, persist, setView, updateSnapshot]);
 
@@ -149,5 +162,5 @@ export function useBtwConversation(request: BtwRequest) {
   const stop = useCallback(() => {
     if (socketRef.current?.readyState === WebSocket.OPEN) socketRef.current.send(JSON.stringify({ type: 'stop' }));
   }, []);
-  return { ...view, draft, setDraft, send, stop };
+  return { ...view, draft, setDraft, send, stop, finish };
 }
