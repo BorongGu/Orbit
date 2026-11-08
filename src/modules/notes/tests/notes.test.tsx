@@ -10,12 +10,13 @@ import { NotesPanel } from '@/modules/notes/NotesPanel';
 import { SelectionNoteAction } from '@/modules/notes/SelectionNoteAction';
 import { NotesDialog } from '@/modules/notes/NotesDialog';
 
-vi.mock('@/shared/api',()=>({api:{projects:vi.fn(),providers:{models:vi.fn()}},notesApi:{create:vi.fn(),read:vi.fn(),list:vi.fn(),update:vi.fn(),remove:vi.fn(),createSession:vi.fn()}}));
+vi.mock('@/shared/api',()=>({api:{projects:vi.fn(),providers:{models:vi.fn()}},notesApi:{create:vi.fn(),read:vi.fn(),list:vi.fn(),groups:vi.fn(),update:vi.fn(),remove:vi.fn(),createSession:vi.fn()}}));
 const note:OutputNote={id:'note',title:'Selected idea',content:'First paragraph.\n\nSecond paragraph.',excerpt:'First paragraph.\n\nSecond paragraph.',sourceSessionId:'source',sourceMessageId:'answer',sourceAnchorId:'anchor',sourceKind:'session',sourceConversationId:null,sourceTitle:'Research',sourceProvider:'codex',sourceModel:'model',sourceProjectPath:'/workspace',createdAt:'2026-11-08T12:00:00Z',updatedAt:'2026-11-08T12:00:00Z',revision:1};
 beforeEach(()=>{
-  vi.clearAllMocks();window.getSelection()?.removeAllRanges();
+  vi.clearAllMocks();localStorage.removeItem('orbit-notes-grouping');window.getSelection()?.removeAllRanges();
   vi.mocked(notesApi.create).mockResolvedValue(note);vi.mocked(notesApi.read).mockResolvedValue(note);
   vi.mocked(notesApi.list).mockResolvedValue({notes:[note],hasMore:false,nextOffset:1});
+  vi.mocked(notesApi.groups).mockResolvedValue([{key:'source',label:'Research',count:1}]);
   vi.mocked(notesApi.createSession).mockResolvedValue({sessionId:'new-session'});
   vi.mocked(notesApi.update).mockImplementation(async(_id,input)=>({...note,...input,revision:input.revision+1}));
   vi.mocked(api.projects).mockResolvedValue(new Response(JSON.stringify([{projectId:'workspace',fullPath:'/workspace',displayName:'Workspace'}])));

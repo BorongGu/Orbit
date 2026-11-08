@@ -27,6 +27,10 @@ export type OutputNote = {
   sourceKind: 'session' | 'btw'; sourceConversationId: string | null;
   sourceProjectPath: string | null; createdAt: string; updatedAt: string; revision: number;
 };
+/** A note-library category with its saved source label or calendar day and full matching note count. */
+export type OutputNoteGroup = { key: string; label: string; count: number };
+/** Filters saved notes by original source id or inclusive/exclusive UTC timestamps for a local day. */
+export type OutputNoteFilter = { sourceSessionId?: string; from?: string; before?: string };
 /** Selection captured before a floating toolbar click or a source-session navigation changes the DOM. */
 export type NoteSelectionInput = { requestId: string; content: string; sourceSessionId: string; sourceMessageId: string; sourceAnchorId?: string; sourceModel?: string; sourceKind?: 'session' | 'btw'; sourceConversationId?: string };
 /** Frozen note context displayed in a newly seeded conversation. */

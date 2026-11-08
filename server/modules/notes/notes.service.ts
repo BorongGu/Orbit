@@ -6,13 +6,31 @@ import { getConnection, groupsDb, notesDb, sessionsDb } from '@/modules/database
 import { sessionsService } from '@/modules/providers/index.js';
 import { broadcastSessionUpserted } from '@/modules/websocket/index.js';
 import { AppError } from '@/shared/index.js';
-import type { LLMProvider, OutputNote } from '@/shared/index.js';
+import type { LLMProvider, OutputNote, OutputNoteFilter, OutputNoteGroup } from '@/shared/index.js';
 
 function fail(message: string, code = 'NOTE_ERROR', statusCode = 400): never { throw new AppError(message, { code,statusCode }); }
 
 /** Notes routes own saved excerpts and create ordinary sessions with frozen first-turn background. */
 export const notesService = {
-  list(userId: number, search: string, offset: number) { return notesDb.list(userId,search,offset); },
+  list(userId: number, search: string, offset: number, filter: OutputNoteFilter = {}) { return notesDb.list(userId,search,offset,filter); },
+  groups(userId: number, search: string, by: 'session' | 'date', timeZone: string): OutputNoteGroup[] {
+    let format: Intl.DateTimeFormat;
+    try { format = new Intl.DateTimeFormat('en', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }); }
+    catch { fail('请选择有效的日期时区。'); }
+    const groups = new Map<string, OutputNoteGroup>();
+    for (const row of notesDb.groupingRows(userId,search)) {
+      let key = row.sessionId;
+      if (by === 'date') {
+        const parts = format.formatToParts(new Date(row.createdAt));
+        const part = (name: string) => parts.find(value => value.type === name)!.value;
+        key = `${part('year')}-${part('month')}-${part('day')}`;
+      }
+      const group = groups.get(key);
+      if (group) group.count++;
+      else groups.set(key, { key, label: by === 'session' ? row.title : key, count: 1 });
+    }
+    return [...groups.values()];
+  },
   sessionContext(userId: number, sessionId: string) { return notesDb.context(userId,sessionId); },
   remove(userId: number, id: string): void { this.read(userId,id); notesDb.remove(userId,id); },
   read(userId: number, id: string): OutputNote {

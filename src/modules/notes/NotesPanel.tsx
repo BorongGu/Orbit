@@ -6,21 +6,20 @@ import { api, notesApi } from '@/shared/api';
 import type { LLMProvider, OutputNote, Project } from '@/shared/types';
 import { createClientRequestId } from '@/shared/utils';
 import { ProviderModelPicker } from '@/shared/ui/ProviderModelPicker';
+import { NotesLibrary } from '@/modules/notes/NotesLibrary';
 
 const FIELD = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm';
 
 /** NotesPage and the selection dialog share a searchable library and a one-click session action. */
 export function NotesPanel({ initialId, onNavigate }: { initialId?: string; onNavigate: (sessionId: string) => void }) {
-  // Persisted notes are fetched in searchable pages, while the selected editor keeps its own unsaved changes.
-  const [list, setList] = useState<{ notes: OutputNote[]; hasMore: boolean; nextOffset: number }>({notes:[],hasMore:false,nextOffset:0});
-  // Search text is local UI state; the backend searches the owner's full note collection.
-  const [search, setSearch] = useState('');
+  // Successful edits and removals refresh category counts and their paginated notes together.
+  const [libraryVersion, setLibraryVersion] = useState(0);
   // Revision travels with the editor to protect edits made from another device.
   const [editor, setEditor] = useState<{ note: OutputNote; title: string; content: string; provider: LLMProvider; model: string; effort: string; projectPath: string } | null>(null);
   // Workspace choices let a note outlive its original project and seed a different project.
   const [projects, setProjects] = useState<Project[]>([]);
   // Request activity gates repeat clicks, and errors retain the note and selection for retry.
-  const [activity, setActivity] = useState({loading:true,busy:false,error:'',saved:false});
+  const [activity, setActivity] = useState({busy:false,error:'',saved:false});
   const launch = useRef<{fingerprint:string;id:string}|null>(null);
   const alive = useRef(true);
   const open = (note: OutputNote) => { setEditor({note,title:note.title,content:note.content,provider:note.sourceProvider,model:note.sourceModel||'',effort:'default',projectPath:note.sourceProjectPath||''});setActivity(value=>({...value,error:'',saved:false}));launch.current=null; };
@@ -30,16 +29,11 @@ export function NotesPanel({ initialId, onNavigate }: { initialId?: string; onNa
     void api.projects().then(async response=>{if(response.ok){const values=await response.json();if(alive.current)setProjects(values);}}).catch(()=>{});
     return()=>{alive.current=false;controller.abort();};
   },[initialId]);
-  useEffect(()=>{
-    const controller=new AbortController();setActivity(value=>({...value,loading:true}));
-    const timer=setTimeout(()=>{void notesApi.list(search,0,controller.signal).then(value=>{if(!controller.signal.aborted){setList(value);setActivity(previous=>({...previous,loading:false}));}}).catch(error=>{if(!controller.signal.aborted)setActivity(value=>({...value,loading:false,error:String(error.message)}));});},150);
-    return()=>{clearTimeout(timer);controller.abort();};
-  },[search]);
   const save = async () => {
     if(!editor)return null;
     if(editor.title===editor.note.title&&editor.content===editor.note.content)return editor.note;
     const note=await notesApi.update(editor.note.id,{title:editor.title,content:editor.content,revision:editor.note.revision});
-    if(alive.current){setEditor(value=>value?.note.id===note.id?{...value,note}:value);setList(value=>({...value,notes:value.notes.map(item=>item.id===note.id?note:item)}));}
+    if(alive.current){setEditor(value=>value?.note.id===note.id?{...value,note}:value);setLibraryVersion(value=>value+1);}
     return note;
   };
   const operation = async (run:()=>Promise<void>) => {
@@ -48,10 +42,7 @@ export function NotesPanel({ initialId, onNavigate }: { initialId?: string; onNa
     finally{if(alive.current)setActivity(value=>({...value,busy:false}));}
   };
   return <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
-    <aside className="flex min-h-0 flex-col gap-2 md:w-64 md:shrink-0"><input aria-label="搜索笔记" placeholder="搜索笔记" className={FIELD} value={search} onChange={event=>setSearch(event.target.value)}/>
-      <div className="max-h-44 space-y-1 overflow-y-auto md:max-h-none md:flex-1">{list.notes.map(note=><button key={note.id} disabled={activity.busy} onClick={()=>open(note)} className={`block w-full rounded-lg p-3 text-left ${editor?.note.id===note.id?'bg-muted':'hover:bg-muted/60'}`}><span className="block truncate text-sm font-medium">{note.title}</span><span className="mt-1 block truncate text-xs text-muted-foreground">{note.sourceTitle}</span></button>)}{!list.notes.length&&<p className="p-3 text-xs text-muted-foreground">{activity.loading?'正在读取笔记…':'在回答中选中文字，点击“保存为笔记”即可收藏。'}</p>}</div>
-      {list.hasMore&&<button disabled={activity.busy} className="text-xs text-primary" onClick={()=>void operation(async()=>{const page=await notesApi.list(search,list.nextOffset);if(alive.current)setList(previous=>({...page,notes:[...previous.notes,...page.notes]}));})}>加载更多笔记</button>}
-    </aside>
+    <NotesLibrary selectedId={editor?.note.id} onSelect={open} busy={activity.busy} version={libraryVersion}/>
     <section className="min-h-0 min-w-0 flex-1 overflow-y-auto">{editor?<fieldset disabled={activity.busy} className="space-y-3">
       <input aria-label="笔记标题" maxLength={200} className={FIELD} value={editor.title} onChange={event=>setEditor({...editor,title:event.target.value})}/>
       <textarea aria-label="笔记内容" maxLength={32000} rows={10} className={`${FIELD} min-h-36 leading-relaxed`} value={editor.content} onChange={event=>setEditor({...editor,content:event.target.value})}/>
@@ -64,7 +55,7 @@ export function NotesPanel({ initialId, onNavigate }: { initialId?: string; onNa
           const fingerprint=JSON.stringify({id:note.id,revision:note.revision,...choice});if(launch.current?.fingerprint!==fingerprint)launch.current={fingerprint,id:createClientRequestId()};
           const result=await notesApi.createSession(note.id,{...choice,requestId:launch.current.id});if(alive.current)onNavigate(result.sessionId);
         })}><Plus size={15}/>用此笔记开启新会话</button>
-        <button type="button" aria-label="删除笔记" className="ml-auto rounded-lg px-2 text-muted-foreground hover:text-red-500" onClick={()=>void operation(async()=>{await notesApi.remove(editor.note.id);if(alive.current){setList(value=>({...value,notes:value.notes.filter(note=>note.id!==editor.note.id)}));setEditor(null);}})}><Trash2 size={16}/></button></div>
+        <button type="button" aria-label="删除笔记" className="ml-auto rounded-lg px-2 text-muted-foreground hover:text-red-500" onClick={()=>void operation(async()=>{await notesApi.remove(editor.note.id);if(alive.current){setLibraryVersion(value=>value+1);setEditor(null);}})}><Trash2 size={16}/></button></div>
       <p className="text-xs text-muted-foreground">新会话会带上这份笔记作为初始背景，在你发送第一条消息时读取。</p>
       <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer text-xs">新会话设置 · {editor.provider}</summary><div className="mt-3 space-y-3"><select aria-label="笔记新会话 Harness" className={FIELD} value={editor.provider} onChange={event=>setEditor({...editor,provider:event.target.value as LLMProvider,model:'',effort:'default'})}>{['claude','codex','opencode','cursor'].map(provider=><option key={provider}>{provider}</option>)}</select>
         <ProviderModelPicker provider={editor.provider} model={editor.model} effort={editor.effort} label="笔记新会话模型" onChange={(model,effort)=>setEditor(value=>value?{...value,model,effort}:value)}/>

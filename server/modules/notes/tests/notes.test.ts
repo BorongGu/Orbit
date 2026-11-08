@@ -10,7 +10,7 @@ import express from 'express';
 import type { NextFunction,Request,Response } from 'express';
 
 import { closeConnection,getConnection,initializeDatabase,notesDb,sessionsDb,userDb } from '@/modules/database/index.js';
-import { createProviderRuntimeService } from '@/modules/providers/index.js';
+import { createProviderRuntimeService, sessionsService } from '@/modules/providers/index.js';
 import { notesRoutes } from '@/modules/notes/notes.routes.js';
 import { notesService } from '@/modules/notes/notes.service.js';
 import { AppError } from '@/shared/index.js';
@@ -49,6 +49,51 @@ test('search treats wildcard characters literally and paginates complete note hi
   assert.equal(notesDb.list(userId,'%',0).notes.length,1);assert.equal(notesDb.list(userId,'_',0).notes.length,1);
   const first=notesDb.list(userId,'',0),second=notesDb.list(userId,'',first.nextOffset);
   assert.equal(first.notes.length,50);assert.equal(first.hasMore,true);assert.equal(second.notes.length,5);assert.equal(second.hasMore,false);
+}));
+
+test('existing saved labels classify all pages and survive source renaming, archival and deletion',async()=>fixture(async({userId,otherId,folder,base})=>{
+  const original=notesService.create(userId,selection);notesDb.remove(userId,original.id);
+  sessionsDb.createAppSession('same-title','codex',folder,'Original research');
+  for(let index=0;index<58;index++)notesDb.create(userId,`saved-${index}`,'legacy-input',{
+    ...original,id:`saved-${index}`,sourceSessionId:index<55?'source':'same-title',title:`Saved excerpt ${index}`,
+    createdAt:new Date(Date.UTC(2026,10,8,0,0,index)).toISOString(),
+  });
+  const getGroups=async()=> (await (await fetch(`${base}/groups?by=session`)).json() as {data:Array<{key:string;label:string;count:number}>}).data;
+  const groups=await getGroups();assert.equal(groups.length,2);
+  assert.equal(groups.find(item=>item.key==='source')?.count,55);assert.ok(groups.every(item=>item.label==='Original research'));
+  assert.deepEqual((await (await fetch(`${base}/groups?by=session`,{headers:{'x-user':String(otherId)}})).json() as {data:unknown}).data,[]);
+  const first=(await (await fetch(`${base}?sourceSessionId=source`)).json() as {data:{notes:OutputNote[];hasMore:boolean;nextOffset:number}}).data;
+  const second=(await (await fetch(`${base}?sourceSessionId=source&offset=${first.nextOffset}`)).json() as {data:{notes:OutputNote[]}}).data;
+  assert.equal(first.notes.length,50);assert.equal(first.hasMore,true);assert.equal(second.notes.length,5);
+  assert.ok([...first.notes,...second.notes].every(note=>note.sourceSessionId==='source'));
+  assert.equal(notesService.list(userId,'Original research',0).notes.length,50,'saved source labels participate in search');
+  getConnection().prepare('UPDATE sessions SET custom_name=? WHERE session_id=?').run('Renamed source','source');
+  await sessionsService.deleteOrArchiveSessionById('source');assert.deepEqual(await getGroups(),groups);
+  await sessionsService.deleteOrArchiveSessionById('source',{force:true});assert.deepEqual(await getGroups(),groups);
+  const edited=notesService.update(userId,'saved-0','Revised note','Retained content',1);
+  assert.equal(edited.sourceTitle,'Original research');assert.equal(edited.createdAt,new Date(Date.UTC(2026,10,8)).toISOString());
+  const target=await notesService.createSession(userId,'saved-0',{requestId:'after-source-deletion'});
+  assert.equal(notesDb.context(userId,target.sessionId)?.note.content,'Retained content');
+}));
+
+test('date categories use local saving days and filter midnight boundaries across sessions',async()=>fixture(async({userId,base})=>{
+  const original=notesService.create(userId,selection);notesDb.remove(userId,original.id);
+  const dates=['2026-11-08T15:59:59.999Z','2026-11-08T16:00:00.000Z','2026-11-09T15:59:59.999Z','2026-11-09T16:00:00.000Z'];
+  dates.forEach((createdAt,index)=>notesDb.create(userId,`dated-${index}`,'old',{
+    ...original,id:`dated-${index}`,createdAt,sourceSessionId:index%2?'deleted-source':'source',
+  }));
+  const groups=(await (await fetch(`${base}/groups?by=date&timeZone=Asia%2FShanghai`)).json() as {data:Array<{key:string;count:number}>}).data;
+  assert.deepEqual(groups.map(item=>[item.key,item.count]),[['2026-11-10',1],['2026-11-09',2],['2026-11-08',1]]);
+  const params=new URLSearchParams({from:'2026-11-08T16:00:00.000Z',before:'2026-11-09T16:00:00.000Z'});
+  const notes=(await (await fetch(`${base}?${params}`)).json() as {data:{notes:OutputNote[]}}).data.notes;
+  assert.deepEqual(notes.map(note=>note.id),['dated-2','dated-1']);
+  assert.equal(notesService.groups(userId,'','date','UTC').find(item=>item.key==='2026-11-08')?.count,2);
+}));
+
+test('classification routes reject invalid modes, time zones and date ranges',async()=>fixture(async({base})=>{
+  for(const query of ['/groups?by=unknown','/groups?by=date&timeZone=Unknown%2FZone','?from=bad','?from=2026-02-30T00%3A00%3A00.000Z','?from=2026-11-09T00%3A00%3A00.000Z&before=2026-11-08T00%3A00%3A00.000Z']){
+    assert.equal((await fetch(base+query)).status,400,query);
+  }
 }));
 
 test('BTW excerpts retain their side-conversation source and can seed a session after the source is removed',async()=>fixture(async({userId,base})=>{

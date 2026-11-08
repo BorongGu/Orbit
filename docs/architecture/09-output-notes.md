@@ -17,6 +17,12 @@ Explicitly closing or replacing the BTW window finishes its native runtime.
 **笔记** entry opens the cross-session library at `/notes`. Notes can be searched,
 edited and deleted. Each retains the immutable original excerpt, source session,
 message/anchor identifier, model when reported, source title and creation time.
+The library switches between **按会话** and **按日期**, with per-category filtering
+and counts covering every matching page. Session categories use the saved source
+id and a saved source-title label; calendar days use each note's original saving
+time in the viewer's local timezone. Search also matches saved source labels.
+Existing notes participate directly through their stored metadata. Source-session
+renaming, archival and deletion preserve notes, saving dates and category labels.
 Selected text comes from rendered output, including streamed output; provenance
 records where the user selected it rather than asserting a native-transcript hash.
 
@@ -49,7 +55,10 @@ preparation bookkeeping leaves seeds pending for the next ordinary turn.
 
 All endpoints require the normal Orbit user authentication:
 
-- `GET /api/notes?q=...&offset=...`: search/paginate the owner's library.
+- `GET /api/notes?q=...&offset=...`: search/paginate the owner's library; optional
+  `sourceSessionId`, inclusive `from` and exclusive `before` filter saved provenance.
+- `GET /api/notes/groups?by=session|date&timeZone=...&q=...`: category labels/counts
+  over the owner's complete matching library, using an IANA timezone for days.
 - `POST /api/notes`: save a rendered selection with source ids and a request id.
 - `GET/PATCH/DELETE /api/notes/:id`: read, revise or delete an owned note.
 - `POST /api/notes/:id/sessions`: create an ordinary session with frozen context.

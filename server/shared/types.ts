@@ -32,6 +32,11 @@ export type OutputNote = {
   sourceProjectPath: string | null; createdAt: string; updatedAt: string; revision: number;
 };
 
+/** Note-library group derived from saved provenance, independent of the live source session. Counts include every matching owned note across pages. */
+export type OutputNoteGroup = { key: string; label: string; count: number };
+/** Optional saved-provenance filters. UTC ISO boundaries represent the inclusive start and exclusive end of a local calendar day. */
+export type OutputNoteFilter = { sourceSessionId?: string; from?: string; before?: string };
+
 /** Frozen note attached to a newly created session; consumption is independent of later note edits or deletion. */
 export type NoteSessionContext = {
   sessionId: string; note: OutputNote; status: 'pending' | 'submitting' | 'delivered' | 'uncertain'; error: string | null;

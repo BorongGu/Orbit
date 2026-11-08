@@ -8,7 +8,7 @@ import { readVoiceConfig, voiceConfigHeaders } from '@/shared/voiceConfig';
 import type { GuestChatBootstrap, GuestChatSnapshot, GuestChatSummary } from '@/shared/types';
 import type { OrbitGroup, OrbitGroupCreateInput, OrbitGroupMessage, OrbitGroupPostInput, OrbitGroupSnapshot } from '@/shared/types';
 import type { ContextTransferInput, ContextTransferRequest } from '@/shared/types';
-import type { NoteSelectionInput, NoteSessionContext, OutputNote } from '@/shared/types';
+import type { NoteSelectionInput, NoteSessionContext, OutputNote, OutputNoteFilter, OutputNoteGroup } from '@/shared/types';
 
 async function guestRequest<T>(url: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
   const controller = new AbortController();
@@ -157,7 +157,12 @@ const groupRequest = <T>(endpoint: string, method = 'GET', body?: unknown, signa
 
 /** Notes stores selected output and seeds ordinary conversations without invoking a model. */
 export const notesApi = {
-  list: (q = '', offset = 0, signal?: AbortSignal) => moduleRequest<{ notes: OutputNote[]; hasMore: boolean; nextOffset: number }>(`/api/notes?q=${encodeURIComponent(q)}&offset=${offset}`, 'GET', undefined, signal),
+  list: (q = '', offset = 0, signal?: AbortSignal, filter: OutputNoteFilter = {}) => {
+    const query = new URLSearchParams({ q, offset: String(offset), ...filter });
+    return moduleRequest<{ notes: OutputNote[]; hasMore: boolean; nextOffset: number }>(`/api/notes?${query}`, 'GET', undefined, signal);
+  },
+  groups: (by: 'session' | 'date', q: string, timeZone: string, signal?: AbortSignal) =>
+    moduleRequest<OutputNoteGroup[]>(`/api/notes/groups?${new URLSearchParams({ by, q, timeZone })}`, 'GET', undefined, signal),
   read: (id: string, signal?: AbortSignal) => moduleRequest<OutputNote>(`/api/notes/${encodeURIComponent(id)}`, 'GET', undefined, signal),
   create: (input: NoteSelectionInput) => moduleRequest<OutputNote>('/api/notes', 'POST', input),
   update: (id: string, input: { title: string; content: string; revision: number }) => moduleRequest<OutputNote>(`/api/notes/${encodeURIComponent(id)}`, 'PATCH', input),

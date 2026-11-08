@@ -1,7 +1,17 @@
 import { getConnection } from '@/modules/database/connection.js';
-import type { NoteSessionContext, OutputNote } from '@/shared/index.js';
+import type { NoteSessionContext, OutputNote, OutputNoteFilter } from '@/shared/index.js';
 
 function decode(row: unknown): OutputNote | null { return row ? JSON.parse((row as { payload: string }).payload) : null; }
+
+function where(userId: number, search: string, filter: OutputNoteFilter = {}) {
+  const pattern = `%${search.replace(/[\\%_]/g, value => `\\${value}`)}%`;
+  const clauses = ["user_id = ? AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\' OR json_extract(payload, '$.sourceTitle') LIKE ? ESCAPE '\\')"];
+  const values: Array<string | number> = [userId, pattern, pattern, pattern];
+  if (filter.sourceSessionId) { clauses.push("json_extract(payload, '$.sourceSessionId') = ?");values.push(filter.sourceSessionId); }
+  if (filter.from) { clauses.push('created_at >= ?');values.push(filter.from); }
+  if (filter.before) { clauses.push('created_at < ?');values.push(filter.before); }
+  return { sql: clauses.join(' AND '), values };
+}
 
 /** Notes persists user selections; the provider gateway atomically consumes frozen initial context. */
 export const notesDb = {
@@ -14,10 +24,17 @@ export const notesDb = {
     const row = getConnection().prepare('SELECT payload,original_input AS originalInput FROM output_notes WHERE user_id = ? AND request_id = ?').get(userId,requestId) as { payload: string; originalInput: string } | undefined;
     return row ? { note: JSON.parse(row.payload), originalInput: row.originalInput } : null;
   },
-  list(userId: number, search: string, offset: number) {
-    const pattern = `%${search.replace(/[\\%_]/g, value => `\\${value}`)}%`;
-    const rows = getConnection().prepare("SELECT payload FROM output_notes WHERE user_id = ? AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\') ORDER BY created_at DESC, id DESC LIMIT 51 OFFSET ?").all(userId,pattern,pattern,offset);
+  list(userId: number, search: string, offset: number, filter: OutputNoteFilter = {}) {
+    const condition = where(userId, search, filter);
+    const rows = getConnection().prepare(`SELECT payload FROM output_notes WHERE ${condition.sql} ORDER BY created_at DESC, id DESC LIMIT 51 OFFSET ?`).all(...condition.values, offset);
     return { notes: rows.slice(0,50).map(row => decode(row)!), hasMore: rows.length > 50, nextOffset: offset + Math.min(rows.length,50) };
+  },
+  groupingRows(userId: number, search: string) {
+    const condition = where(userId, search);
+    // Saved metadata remains readable after source-session archival, renaming or deletion.
+    return getConnection().prepare(`SELECT json_extract(payload, '$.sourceSessionId') AS sessionId,
+      json_extract(payload, '$.sourceTitle') AS title, created_at AS createdAt FROM output_notes
+      WHERE ${condition.sql} ORDER BY created_at DESC, id DESC`).all(...condition.values) as Array<{ sessionId: string; title: string; createdAt: string }>;
   },
   update(userId: number, note: OutputNote, previousRevision: number): boolean {
     return getConnection().prepare('UPDATE output_notes SET title=?,content=?,payload=?,revision=?,updated_at=? WHERE user_id=? AND id=? AND revision=?')
