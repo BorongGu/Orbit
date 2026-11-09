@@ -29,7 +29,7 @@ type MarkdownProps = {
   breaks?: boolean;
   /** In a growing reply, source text after this offset receives a short ink fade. */
   inkFrom?: number;
-  /** Guest chat renders prose without workspace navigation or model-authored images. */
+  /** Personal chat renders prose without workspace navigation or model-authored images. */
   restricted?: boolean;
 };
 
@@ -83,7 +83,7 @@ const MATH_DELIMITER = /\$\$/;
 
 const EMPTY_PLUGINS: never[] = [];
 
-// One delegated listener covers the shared renderer's main chat, streaming and guest/BTW consumers.
+// One delegated listener covers the shared renderer's main chat, streaming and personal/BTW consumers.
 document.addEventListener('copy', copyMathSelection);
 if (import.meta.hot) import.meta.hot.dispose(() => document.removeEventListener('copy', copyMathSelection));
 

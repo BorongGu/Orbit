@@ -66,7 +66,7 @@ test('a Windows output citation preserves the original file path', () => {
   assert.deepEqual(openFileInEditor.mock.calls, [[file, null]]);
 });
 
-test('code examples keep the directive literal and guest replies show a filename', () => {
+test('code examples keep the directive literal and personal replies show a filename', () => {
   const citation = ':codex-file-citation{path="/tmp/report.pdf" purpose="source"}';
   const { container } = render(<StreamingMarkdown content={`Example: \`${citation}\`.\n\n${citation}`} isStreaming={false} restricted />);
   assert.equal(container.querySelector('code')?.textContent, citation);

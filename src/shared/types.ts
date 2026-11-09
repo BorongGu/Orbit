@@ -60,22 +60,22 @@ export type ContextTransferRequest = {
 
 // ---------------------------
 
-//----------------- ISOLATED GUEST CHAT ------------
-/** Public guest API message; image identifiers resolve only through its authenticated image endpoint. */
-export type GuestChatMessage = { id: string; role: 'user' | 'assistant'; text: string; reasoning?: string; images: string[]; createdAt: number };
-/** The guest API and page share this snapshot; native thread IDs and paths stay on the server. */
-export type GuestChatSnapshot = { id: string; title: string; busy: boolean; status: string; error: string | null;
-  messages: GuestChatMessage[]; updatedAt: number; revision: number; model: string; effort: string; partial?: boolean;
+//----------------- ISOLATED PERSONAL CHAT ------------
+/** Public personal API message; image identifiers resolve only through its authenticated image endpoint. */
+export type PersonalChatMessage = { id: string; role: 'user' | 'assistant'; text: string; reasoning?: string; images: string[]; createdAt: number };
+/** The personal API and page share this snapshot; native thread IDs and paths stay on the server. */
+export type PersonalChatSnapshot = { id: string; title: string; busy: boolean; status: string; error: string | null;
+  messages: PersonalChatMessage[]; updatedAt: number; revision: number; model: string; effort: string; partial?: boolean;
   /** Latest native call usage, rather than cumulative account token consumption. */
   context?: { used: number | null; limit: number };
   /** Native compaction lifecycle survives snapshots, reconnects and session switches. */
   compaction?: { phase: 'running' | 'completed' | 'failed'; startedAt: number; finishedAt?: number } | null };
-/** Guest history picker contains only its dedicated store's conversation summaries. */
-export type GuestChatSummary = Pick<GuestChatSnapshot, 'id' | 'title' | 'updatedAt' | 'busy'>;
-/** One authenticated response supplies the guest history and selected transcript. */
-export type GuestChatBootstrap = { authenticated: boolean; username?: string; chats?: GuestChatSummary[]; chat?: GuestChatSnapshot | null };
-/** A selected guest image stays attached to its draft while preparation, upload or retry runs. */
-export type GuestChatAttachment = { id: string; preview: string; name: string; source: File; blob?: Blob; imageId?: string;
+/** Personal history picker contains only its dedicated store's conversation summaries. */
+export type PersonalChatSummary = Pick<PersonalChatSnapshot, 'id' | 'title' | 'updatedAt' | 'busy'>;
+/** One authenticated response supplies the personal history and selected transcript. */
+export type PersonalChatBootstrap = { authenticated: boolean; username?: string; chats?: PersonalChatSummary[]; chat?: PersonalChatSnapshot | null };
+/** A selected personal image stays attached to its draft while preparation, upload or retry runs. */
+export type PersonalChatAttachment = { id: string; preview: string; name: string; source: File; blob?: Blob; imageId?: string;
   status: 'preparing' | 'queued' | 'uploading' | 'ready' | 'error'; progress: number; error?: string };
 // ---------------------------
 //----------------- WORKSPACE ATTACHMENT PROGRESS ------------

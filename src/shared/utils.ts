@@ -59,7 +59,7 @@ export const IS_PLATFORM = import.meta.env?.VITE_IS_PLATFORM === 'true';
 
 // ---------------------------
 //----------------- CHAT IMAGE PREPARATION ------------
-/** Guest chat and workspace attachments share a legible, size-reducing raster export; other files stay intact. */
+/** Personal chat and workspace attachments share a legible, size-reducing raster export; other files stay intact. */
 export async function optimizeChatImage(file: File): Promise<Blob> {
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size <= 180_000) return file;
   const url = URL.createObjectURL(file);

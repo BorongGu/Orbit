@@ -12,12 +12,12 @@ type StreamingMarkdownProps = {
   /** Provider delta streams can request block splitting from their first snapshot. */
   isStreaming: boolean;
   className?: string;
-  /** Public guest chat uses prose-only navigation and image rendering. */
+  /** Public personal chat uses prose-only navigation and image rendering. */
   restricted?: boolean;
 };
 
 /**
- * Chat and guest-chat render saved replies and growing Codex/OpenCode snapshots here.
+ * Chat and personal-chat render saved replies and growing Codex/OpenCode snapshots here.
  * Saved content appears immediately. Appended text is paced over short frames,
  * with a brief ink fade on new inline groups. Safe block splitting memoizes the
  * settled prefix while Markdown parses the growing tail. Keeping this component

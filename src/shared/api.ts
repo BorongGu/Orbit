@@ -5,12 +5,12 @@ import {
 } from '@/shared/authToken';
 import { IS_PLATFORM } from '@/shared/utils';
 import { readVoiceConfig, voiceConfigHeaders } from '@/shared/voiceConfig';
-import type { GuestChatBootstrap, GuestChatSnapshot, GuestChatSummary } from '@/shared/types';
+import type { PersonalChatBootstrap, PersonalChatSnapshot, PersonalChatSummary } from '@/shared/types';
 import type { OrbitGroup, OrbitGroupCreateInput, OrbitGroupMessage, OrbitGroupPostInput, OrbitGroupSnapshot } from '@/shared/types';
 import type { ContextTransferInput, ContextTransferRequest } from '@/shared/types';
 import type { NoteSelectionInput, NoteSessionContext, OutputNote, OutputNoteFilter, OutputNoteGroup } from '@/shared/types';
 
-async function guestRequest<T>(url: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
+async function personalRequest<T>(url: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
   const controller = new AbortController();
   const abort = () => controller.abort();signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) controller.abort();
@@ -29,15 +29,15 @@ async function guestRequest<T>(url: string, payload?: unknown, signal?: AbortSig
   } finally { clearTimeout(timer);signal?.removeEventListener('abort', abort); }
 }
 
-/** Guest chat uses cookie authentication and its separate, tightly scoped service. */
-export const guestChatApi = {
-  auth: (selected?: string | null, signal?: AbortSignal) => guestRequest<GuestChatBootstrap>('/api/auth' + (selected ? `?chat=${encodeURIComponent(selected)}` : ''), undefined, signal),
-  login: (username: string, password: string) => guestRequest<GuestChatBootstrap>('/api/login', { username, password }),
-  logout: () => guestRequest('/api/logout', {}),
-  list: () => guestRequest<{ chats: GuestChatSummary[] }>('/api/chats'),
-  create: () => guestRequest<GuestChatSnapshot>('/api/chats', {}),
-  read: (id: string, signal?: AbortSignal) => guestRequest<GuestChatSnapshot>(`/api/chats/${encodeURIComponent(id)}`, undefined, signal),
-  send: (id: string, text: string, images: string[], requestId: string, imageIds: string[] = []) => guestRequest<GuestChatSnapshot>(`/api/chats/${encodeURIComponent(id)}/messages`, { text, images, requestId, imageIds }),
+/** Personal chat uses cookie authentication and its separate, tightly scoped service. */
+export const personalChatApi = {
+  auth: (selected?: string | null, signal?: AbortSignal) => personalRequest<PersonalChatBootstrap>('/api/auth' + (selected ? `?chat=${encodeURIComponent(selected)}` : ''), undefined, signal),
+  login: (username: string, password: string) => personalRequest<PersonalChatBootstrap>('/api/login', { username, password }),
+  logout: () => personalRequest('/api/logout', {}),
+  list: () => personalRequest<{ chats: PersonalChatSummary[] }>('/api/chats'),
+  create: () => personalRequest<PersonalChatSnapshot>('/api/chats', {}),
+  read: (id: string, signal?: AbortSignal) => personalRequest<PersonalChatSnapshot>(`/api/chats/${encodeURIComponent(id)}`, undefined, signal),
+  send: (id: string, text: string, images: string[], requestId: string, imageIds: string[] = []) => personalRequest<PersonalChatSnapshot>(`/api/chats/${encodeURIComponent(id)}/messages`, { text, images, requestId, imageIds }),
   upload: (id: string, blob: Blob, onProgress: (percent: number) => void, signal: AbortSignal) => new Promise<{ id: string }>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const abort = () => xhr.abort();
@@ -58,9 +58,9 @@ export const guestChatApi = {
     if (signal.aborted) { reject(new DOMException('Upload cancelled', 'AbortError'));return; }
     signal.addEventListener('abort', abort, { once: true });xhr.send(blob);
   }),
-  stop: (id: string) => guestRequest<GuestChatSnapshot>(`/api/chats/${encodeURIComponent(id)}/stop`, {}),
+  stop: (id: string) => personalRequest<PersonalChatSnapshot>(`/api/chats/${encodeURIComponent(id)}/stop`, {}),
   image: (id: string) => `/api/images/${encodeURIComponent(id)}`,
-  subscribe: (id: string, onSnapshot: (snapshot: GuestChatSnapshot) => void, onConnection: (connected: boolean) => void, initial?: GuestChatSnapshot) => {
+  subscribe: (id: string, onSnapshot: (snapshot: PersonalChatSnapshot) => void, onConnection: (connected: boolean) => void, initial?: PersonalChatSnapshot) => {
     const url = new URL(`/api/live/${encodeURIComponent(id)}`, window.location.href);url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     url.searchParams.set('delta', '1');if (initial) url.searchParams.set('revision', String(initial.revision));
     const socket = new WebSocket(url);let closed = false;

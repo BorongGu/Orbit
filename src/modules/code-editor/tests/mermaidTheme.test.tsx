@@ -8,7 +8,7 @@ vi.mock('mermaid', () => ({ default: { initialize, render: vi.fn(async () => ({ 
 
 afterEach(() => { cleanup();document.documentElement.classList.remove('dark'); });
 
-test('standalone guest diagrams follow document theme changes while keeping the same component', async () => {
+test('standalone personal diagrams follow document theme changes while keeping the same component', async () => {
   document.documentElement.classList.add('dark');render(<MermaidDiagram code="graph TD; A-->B" />);
   await waitFor(() => expect(initialize).toHaveBeenLastCalledWith(expect.objectContaining({ theme: 'dark' })));
   document.documentElement.classList.remove('dark');

@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans CJK SC", sans-serif;
+  font-size: 14px; font-weight: 400; font-synthesis: none; color: #d7dbe5; background: #111318;
+  --background: 225 18% 9%; --foreground: 223 20% 86%; --primary: 245 61% 69%; --primary-foreground: 0 0% 100%;
+  --muted: 225 18% 14%; --muted-foreground: 228 11% 61%; --border: 228 15% 21%; --input: 228 15% 23%;
+  --accent: 235 21% 18%; --accent-foreground: 235 35% 86%; --ring: 248 49% 63%;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input, textarea, select { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; } button:disabled { cursor: default; }
+button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid #8173c8; outline-offset: 3px; }
+button svg { flex-shrink: 0; } h1, h2, p { margin: 0; }
+.personal-brand { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: linear-gradient(140deg,#3f49a6,#6848a8); color: #f0edff; flex-shrink: 0; box-shadow: inset 0 1px 0 #ffffff13; }
+.personal-primary { background: linear-gradient(115deg,#424eb4,#6848b4)!important; color: #f7f5ff; border: 0; box-shadow: 0 2px 10px #00000018; }
+.personal-primary:hover { filter: brightness(1.12); }
+.personal-login { position: relative; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at 50% 8%,#25213c55,transparent 62%); }
+.personal-login form { width: 100%; max-width: 370px; border: 1px solid #2c2b3d; background: #17191f; border-radius: 22px; padding: 30px; box-shadow: 0 18px 70px #00000026; }
+.personal-login .personal-brand { margin-bottom: 23px; }
+.personal-login h1 { font-size: 23px; font-weight: 600; letter-spacing: -.5px; }
+.personal-login p { color: #9295a4; margin: 9px 0 25px; font-size: 13px; }
+.personal-login label { display: block; font-size: 12px; margin: 18px 0 7px; color: #a5a7b6; }
+.personal-login input { height: 43px; font-size: 16px; border-radius: 10px; background: #121419; box-shadow: none; }
+.personal-login form > button { width: 100%; margin-top: 24px; height: 42px; border-radius: 10px; }
+.personal-login small { display: block; text-align: center; margin-top: 18px; color: #767b8d; font-size: 11px; }
+.personal-shell { height: 100dvh; display: flex; flex-direction: column; max-width: 1040px; margin: auto; }
+.personal-header { width: 100%; max-width: 936px; margin: auto; padding: 19px 26px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; }
+.personal-heading { display: flex; align-items: center; gap: 11px; }
+.personal-heading h1 { font-size: 16px; font-weight: 600; letter-spacing: -.2px; }
+.personal-heading p { font-size: 10px; color: #777d90; margin-top: 3px; }
+.personal-actions { display: flex; align-items: center; gap: 4px; }
+.personal-actions select { max-width: 170px; border: 0; background: transparent; color: #8a90a3; font-size: 12px; border-radius: 7px; padding: 7px 3px; overflow: hidden; text-overflow: ellipsis; }
+.personal-actions option { background: #1c1f28; color: #d7dbe5; }
+.personal-actions button { font-size: 12px; color: #818799; }
+.personal-transcript { flex: 1; overflow: auto; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-color: #363a49 transparent; min-height: 0; }
+.personal-content { max-width: 880px; margin: auto; padding: 23px 26px 27px; overflow-wrap: anywhere; }
+.personal-empty { padding: 15vh 0 7vh; text-align: center; }
+.personal-empty h2 { font-size: 23px; font-weight: 500; letter-spacing: -.6px; }
+.personal-empty p { font-size: 12px; color: #73798b; margin-top: 14px; }
+.personal-message { margin: 0 0 22px; line-height: 1.75; font-size: 14px; font-weight: 400; }
+.personal-message.user { max-width: 85%; margin-left: auto; width: fit-content; background: #202330; border: 1px solid #2d3041; padding: 11px 17px; border-radius: 17px 17px 5px 17px; }
+.personal-question { white-space: pre-wrap; }
+.personal-images { display: flex; gap: 9px; flex-wrap: wrap; margin-bottom: 7px; }
+.personal-images img { max-width: 180px; max-height: 180px; border-radius: 9px; object-fit: contain; }
+.personal-prose p { margin: 0 0 .72em; } .personal-prose strong { font-weight: 600; color: #e4e7ef; }
+.personal-prose h1,.personal-prose h2,.personal-prose h3 { font-size: 1.1em; font-weight: 600; margin: 1em 0 .6em; }
+.personal-prose ul,.personal-prose ol { padding-left: 1.6em; margin: .7em 0; list-style: revert; } .personal-prose li { margin: .25em 0; }
+.personal-prose pre { overflow-x: auto; font-size: .87em; }
+.personal-prose table { border-collapse: collapse; width: 100%; font-size: .95em; }
+.personal-prose td,.personal-prose th { padding: .6em; border: 1px solid #313544; }
+.personal-prose blockquote { border-left: 2px solid #595274; padding-left: 1em; color: #9b9faf; margin: .8em 0; }
+.personal-prose a { color: #a29ae4; } .personal-prose .katex-display { overflow: auto; padding: 7px 0; } .personal-prose .katex { font-size: 1.06em; }
+.personal-copy { display: block; font-size: 10px; color: #73798b; padding: 3px 0; background: none; border: 0; margin-top: 8px; }
+.personal-copy:hover { color: #b4abd9; }
+.personal-notice { font-size: 12px; color: #b0a398; padding: 9px 12px; background: #292521; border-radius: 9px; margin: 10px 0; }
+.personal-footer { padding: 8px 24px max(18px,env(safe-area-inset-bottom)); flex-shrink: 0; }
+.personal-compose { max-width: 880px; margin: auto; border: 1px solid transparent; border-radius: 18px; background: linear-gradient(#191c24,#191c24) padding-box,linear-gradient(130deg,#535b9966,#7b5ca25c,#353b4944) border-box; box-shadow: 0 7px 25px #0000001a; overflow: hidden; }
+.personal-compose:focus-within { background: linear-gradient(#1b1d26,#1b1d26) padding-box,linear-gradient(130deg,#6972b595,#9874be88,#4e526170) border-box; }
+.personal-compose textarea { width: 100%; resize: vertical; min-height: 76px; max-height: 200px; padding: 15px 18px 4px; border: 0; outline: 0; box-shadow: none; font-size: 15px; line-height: 1.6; background: transparent; color: #d2d6e1; }
+.personal-compose textarea::placeholder { color: #737b90; }
+.personal-compose-bar { display: flex; align-items: center; gap: 7px; padding: 5px 9px 9px; }
+.personal-compose-bar button { border-radius: 10px; flex-shrink: 0; height: 36px; font-size: 12px; }
+.personal-compose-bar>button:first-of-type { color: #8a91a4; }
+.personal-status { flex: 1; font-size: 10px; color: #70778a; display: flex; align-items: center; gap: 7px; }
+.personal-status i { width: 5px; height: 5px; border-radius: 50%; background: #9a85c7; animation: personal-pulse 1.5s ease-in-out infinite; }
+.personal-previews { display: flex; gap: 11px; padding: 12px 15px 0; } .personal-previews>div { position: relative; }
+.personal-previews img { height: 58px; width: 58px; object-fit: cover; border-radius: 8px; }
+.personal-previews .personal-remove-image { position: absolute; right: -5px; top: -5px; background: #56516f; color: #fff; padding: 2px; border-radius: 50%; }
+.personal-feedback { max-width: 880px; margin: 6px auto 0; color: #8e91a1; font-size: 11px; text-align: center; }
+.personal-reasoning { border-left: 2px solid #4a435e; padding: 5px 0 5px 12px; margin-bottom: 15px; color: #8e8a9f; }
+.personal-reasoning .personal-prose { font-size: 12px; line-height: 1.65; max-height: 240px; overflow: auto; }
+.personal-reasoning button { font-size: 11px; }
+@keyframes personal-pulse { 50% { opacity: .35; } }
+@media(max-width:600px) {
+  .personal-header { padding: 13px 14px; } .personal-heading { gap: 9px; } .personal-brand { width: 31px; height: 31px; border-radius: 10px; }
+  .personal-heading h1 { font-size: 14px; } .personal-heading p { font-size: 9px; }
+  .personal-actions select { max-width: 88px; font-size: 11px; } .personal-actions button { padding: 6px; width: 29px; min-width: 29px; } .personal-actions button span { display: none; }
+  .personal-content { padding: 18px 17px 20px; } .personal-empty h2 { font-size: 20px; } .personal-empty { padding-top: 20vh; }
+  .personal-message { font-size: 14px; margin-bottom: 20px; } .personal-message.user { max-width: 92%; padding: 10px 13px; }
+  .personal-footer { padding: 4px 10px max(10px,env(safe-area-inset-bottom)); } .personal-compose { border-radius: 16px; }
+  .personal-compose textarea { min-height: 60px; padding: 12px 13px 3px; font-size: 16px; }
+  .personal-compose-bar { padding: 3px 6px 6px; } .personal-status { font-size: 10px; } .personal-status:not(:has(i)) { font-size: 0; }
+  .personal-images img { max-width: 125px; max-height: 140px; }
+}
+@media(prefers-reduced-motion:reduce) { .personal-status i { animation: none; } * { scroll-behavior: auto!important; } }
+
+.personal-compose-shell { position: relative; max-width: 880px; margin: auto; }
+.personal-companions { position: absolute; z-index: 1; width: 112px; height: 56px; object-fit: contain; right: 17px; top: -48px; pointer-events: none; user-select: none; filter: drop-shadow(0 2px 3px #00000022); }
+.personal-footer { padding-top: 32px; }
+@media(max-width:600px) { .personal-companions { width: 100px; height: 50px; top: -43px; right: 13px; } .personal-footer { padding-top: 28px; } }
+.personal-spin { animation: personal-spin 1.1s linear infinite; flex-shrink: 0; }
+@keyframes personal-spin { to { transform: rotate(360deg); } }
+.personal-loading { padding: 40px 5px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; color: #8f96ac; font-size: 12px; }
+.personal-loading button { font-size: 12px; color: #b6a4eb; }
+.personal-skeleton { width: 100%; height: 12px; margin-top: 18px; border-radius: 6px; background: linear-gradient(90deg,#20232e,#2c2c42,#20232e); background-size: 200% 100%; animation: personal-shimmer 1.8s ease-in-out infinite; }
+.personal-skeleton.short { width: 60%; margin-top: 0; }
+@keyframes personal-shimmer { to { background-position: -200% 0; } }
+.personal-sync { display: flex; align-items: center; gap: 6px; color: #8f96ac; font-size: 10px; margin-bottom: 16px; }
+.personal-delivery { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; font-size: 10px; color: #a09aba; margin-top: 8px; }
+.personal-delivery button { display: inline-flex; align-items: center; gap: 5px; color: #c3b6ef; padding: 3px 0; }
+.personal-outgoing { opacity: .86; }
+.personal-waiting { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 12px; color: #a49ac1; padding: 3px 0 14px; }
+.personal-waiting small { flex-basis: 100%; padding-left: 24px; color: #777f94; font-size: 10px; }
+.personal-upload-state { display: flex; align-items: center; justify-content: center; gap: 3px; font-size: 9px; color: #aaa4c4; min-height: 21px; white-space: nowrap; }
+.personal-upload-state button { display: flex; align-items: center; gap: 3px; color: #d3b6b1; }
+.personal-attachment progress { width: 58px; height: 3px; display: block; accent-color: #9a85c7; }
+.personal-upload-error { padding: 2px 15px; font-size: 10px; color: #bfa5a2; }
+.personal-status.personal-status-visible { font-size: 10px; }
+.personal-compose-info { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.personal-context { display: flex; align-items: center; gap: 5px; color: hsl(var(--muted-foreground)); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.personal-context svg { color: hsl(var(--primary)); }
+.personal-compaction { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-bottom: 1px solid hsl(var(--border) / .65); background: hsl(var(--accent) / .45); color: hsl(var(--accent-foreground)); }
+.personal-compaction > div { flex: 1; min-width: 0; }
+.personal-compaction strong { font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.personal-compaction p { margin-top: 4px; font-size: 10px; color: hsl(var(--muted-foreground)); }
+.personal-compaction button { display: inline-flex; align-items: center; gap: 3px; padding: 6px 7px; border-radius: 8px; border: 1px solid hsl(var(--primary) / .25); font-size: 10px; white-space: nowrap; }
+.personal-compaction button:hover { background: hsl(var(--primary) / .1); }
+@media(prefers-reduced-motion:reduce) { .personal-spin,.personal-skeleton { animation: none; } }

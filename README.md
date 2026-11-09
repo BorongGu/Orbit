@@ -33,6 +33,7 @@ Install and authenticate the CLI providers you intend to use on the machine runn
 - **Side conversations:** `/btw <question>` opens a Codex or OpenCode side conversation with inherited context. Each main session retains its own window, draft and side conversation across navigation and refresh.
 - **Agent collaboration:** group discussions, peer input, shared task dispatch, and conversation context transfer and handoff.
 - **Workspace tools:** integrated terminal, file editing, Git operations, plugins, browser tasks and optional TaskMaster integration.
+- **Personal chat mode:** a lightweight personal interface with text and image input, streamed answers, reasoning summaries and public HTTPS access. See the [personal chat setup](scripts/personal-chat/README.md).
 
 ## Run Orbit from source
 

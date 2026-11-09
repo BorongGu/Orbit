@@ -29,7 +29,7 @@ type MermaidDiagramProps = {
  */
 export default function MermaidDiagram({ code }: MermaidDiagramProps) {
   const theme = useOptionalTheme();
-  // Guest chat selects its appearance on the document while workspace views use ThemeContext.
+  // Personal chat selects its appearance on the document while workspace views use ThemeContext.
   const [documentDark, setDocumentDark] = useState(() => document.documentElement.classList.contains('dark'));
   const isDarkMode = theme?.isDarkMode ?? documentDark;
   const reactId = useId();
