@@ -114,12 +114,17 @@
 
 :root[data-appearance="linear"] body {
   font-size: 14px;
-  font-weight: 400;
+  font-weight: 350;
   font-optical-sizing: auto;
   font-feature-settings: "calt";
 }
 
 :root[data-appearance="linear"] :is(.font-sans, .font-serif) { font-family: var(--font-text); }
+/* Keep explicit utility weights aligned with the lighter variable-font body. */
+:root[data-appearance="linear"] .font-normal { font-weight: 350; }
+:root[data-appearance="linear"] .font-medium { font-weight: 450; }
+:root[data-appearance="linear"] .font-semibold { font-weight: 550; }
+:root[data-appearance="linear"] .font-bold { font-weight: 600; }
 :root[data-appearance="linear"] ::selection { background: hsl(var(--primary) / 19%); }
 :root[data-appearance="linear"] :is(button, input, textarea, select):focus-visible { outline-color: hsl(var(--ring)); }
 :root[data-appearance="linear"] :is(.bg-primary, .bg-primary\/90, .bg-primary\/80) { background-image: var(--linear-gradient); }
@@ -152,7 +157,7 @@
 
 :root[data-appearance="linear"] .workspace-sidebar h1 {
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.035em;
 }
 
@@ -201,7 +206,7 @@
   box-shadow: none;
 }
 
-:root[data-appearance="linear"] .workspace-header [role="tab"] { height: 28px; border-radius: 5px; font-weight: 500; }
+:root[data-appearance="linear"] .workspace-header [role="tab"] { height: 28px; border-radius: 5px; font-weight: 450; }
 :root[data-appearance="linear"] .workspace-header [role="tab"][aria-selected="true"] {
   color: hsl(var(--foreground));
   background: hsl(var(--card) / 60%);
@@ -212,15 +217,15 @@
 :root[data-appearance="linear"] .chat-message.user { padding-block: 9px; }
 :root[data-appearance="linear"] .chat-message .prose {
   font-size: var(--chat-font-size, 14px);
-  font-weight: 400;
+  font-weight: 350;
   line-height: 1.78;
   letter-spacing: 0.005em;
 }
 
-:root[data-appearance="linear"] .prose :where(strong, b) { font-weight: 600; }
+:root[data-appearance="linear"] .prose :where(strong, b) { font-weight: 550; }
 :root[data-appearance="linear"] .prose .katex { font-size: 1.05em; }
 :root[data-appearance="linear"] .chat-message :is(code, pre, .katex) { letter-spacing: normal; }
-:root[data-appearance="linear"] .chat-message .prose :where(h1, h2, h3, h4) { font-weight: 600; letter-spacing: -0.015em; }
+:root[data-appearance="linear"] .chat-message .prose :where(h1, h2, h3, h4) { font-weight: 550; letter-spacing: -0.015em; }
 :root[data-appearance="linear"] .chat-message .prose :where(p, ul, ol, blockquote) { margin-block: 0.65em; }
 :root[data-appearance="linear"] .chat-message .prose > :first-child { margin-top: 0; }
 :root[data-appearance="linear"] .chat-message .prose > :last-child { margin-bottom: 0; }
@@ -238,7 +243,7 @@
 :root[data-appearance="linear"] [data-slot="code-block"] { border-color: hsl(var(--border) / 65%); border-radius: 8px; box-shadow: none; }
 :root[data-appearance="linear"] .chat-message.tool > button { padding-block: 5px; border-left-width: 1px; border-radius: 0 5px 5px 0; background: hsl(var(--card) / 18%); }
 :root[data-appearance="linear"] .chat-message.tool .border-l-2 { border-left-width: 1px; }
-:root[data-appearance="linear"] .chat-empty-state h2 { font-size: 25px; font-weight: 550; letter-spacing: -0.035em; }
+:root[data-appearance="linear"] .chat-empty-state h2 { font-size: 25px; font-weight: 500; letter-spacing: -0.035em; }
 
 :root[data-appearance="linear"] .chat-composer-form {
   border: 1px solid var(--linear-glass-edge);
