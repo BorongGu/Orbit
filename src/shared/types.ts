@@ -2006,3 +2006,15 @@ export type OrbitGroupPostInput = {
   to?: string; mentions?: string[]; title?: string; replyTo?: string;
 };
 // ---------------------------
+
+//----------------- SESSION HISTORY SEARCH ------------
+/** One matching dialogue message; index addresses its immutable search snapshot, including duplicate timestamps. */
+export type SessionMessageSearchHit = { index: number; messageId: string; role: 'user' | 'assistant'; timestamp: string; snippet: string };
+/** Bounded search page; the snapshot token keeps pagination and jumps stable while new messages arrive. */
+export type SessionMessageSearchPage = { snapshot: string; total: number; offset: number; hasMore: boolean; hits: SessionMessageSearchHit[] };
+/** Small dialogue window around an exact result; start/end are indices in the search snapshot. */
+export type SessionMessageWindow = { snapshot: string; index: number; start: number; end: number; total: number; messages: NormalizedMessage[] };
+// ---------------------------
+
+/** A chosen history window retains the query used at selection, independently of later input edits. */
+export type SessionHistoryLocation = SessionMessageWindow & { query: string };

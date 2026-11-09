@@ -26,7 +26,7 @@ Install and authenticate the CLI providers you intend to use on the machine runn
 
 ## Highlights
 
-- **Sessions across desktop and mobile:** project and conversation views, pinned sessions, running-session indicators, history search and saved reading positions.
+- **Sessions across desktop and mobile:** project and conversation views, pinned sessions, running-session indicators, history search and saved reading positions. Within a session, use the search button or Ctrl/⌘ F to find text across the full history and jump to a bounded dialogue window.
 - **Reading and writing:** streamed Markdown, tables, inline and display LaTeX, formula-aware copying, image attachments and fullscreen reading.
 - **Five appearance styles:** Claude, GitHub, Linear, Paper and Raycast, with light/dark modes and adjustable chat font size.
 - **Context and subscriptions:** context-window usage, compaction status and remaining subscription quotas.

@@ -386,7 +386,16 @@
     "sharing": "正在整理并传递 BTW 的新增上下文…",
     "shared": "已附到母会话，下一轮对话将自动带入。",
     "resize": "调整窗口大小：{{direction}}",
-    "resizeDirection": { "n": "上边", "s": "下边", "w": "左边", "e": "右边", "nw": "左上角", "ne": "右上角", "sw": "左下角", "se": "右下角" },
+    "resizeDirection": {
+      "n": "上边",
+      "s": "下边",
+      "w": "左边",
+      "e": "右边",
+      "nw": "左上角",
+      "ne": "右上角",
+      "sw": "左下角",
+      "se": "右下角"
+    },
     "input": "旁支问题",
     "placeholder": "问一个旁支问题…",
     "send": "发送旁支问题",
@@ -404,5 +413,27 @@
       "retrying": "正在重连模型…",
       "reconnecting": "正在恢复临时对话连接…"
     }
+  },
+  "historySearch": {
+    "title": "搜索当前会话",
+    "placeholder": "搜索历史对话内容…",
+    "refresh": "刷新历史记录",
+    "close": "关闭搜索",
+    "searching": "正在搜索…",
+    "jumping": "正在定位…",
+    "count": "共 {{count}} 条匹配消息",
+    "hint": "搜索完整会话 · Enter 定位首条",
+    "hideResults": "收起结果",
+    "showResults": "查看结果",
+    "back": "返回最新对话",
+    "results": "搜索结果",
+    "user": "你",
+    "assistant": "助手",
+    "previous": "上一页结果",
+    "next": "下一页结果",
+    "position": "历史对话 {{index}} / {{total}}",
+    "earlier": "更早的上下文",
+    "later": "后续上下文",
+    "shortcut": "搜索当前会话（Ctrl/⌘ F）"
   }
 }

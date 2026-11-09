@@ -24,6 +24,8 @@ import type {
 } from '@/shared/types.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 
+import { sessionMessageSearchService } from '@/modules/providers/services/session-message-search.service.js';
+
 const router = express.Router();
 
 const readPathParam = (value: unknown, name: string): string => {
@@ -1014,6 +1016,31 @@ router.put(
     res.json(createApiSuccessResponse(result));
   }),
 );
+
+function searchOwner(req: Request): number {
+  const id = Number((req as Request & { user?: { id: number } }).user?.id);
+  if (!Number.isSafeInteger(id) || id < 1) throw new AppError('需要登录后搜索会话。', { code: 'UNAUTHORIZED', statusCode: 401 });
+  return id;
+}
+
+router.get('/sessions/:sessionId/messages/search', asyncHandler(async (req: Request, res: Response) => {
+  const sessionId = parseSessionId(req.params.sessionId);
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (!q || q.length > 200) throw new AppError('搜索词需为 1–200 个字符。', { code: 'INVALID_SEARCH_QUERY', statusCode: 400 });
+  const offset = parseBoundedIntegerQuery(req.query.offset, 'offset', 0, 0) ?? 0;
+  const snapshot = req.query.snapshot === undefined ? undefined : parseSessionId(req.query.snapshot);
+  const owner = searchOwner(req);
+  res.json(createApiSuccessResponse(await sessionMessageSearchService.search(owner, sessionId, q, offset, snapshot)));
+}));
+
+router.get('/sessions/:sessionId/messages/window', asyncHandler(async (req: Request, res: Response) => {
+  const sessionId = parseSessionId(req.params.sessionId);
+  const snapshot = parseSessionId(req.query.snapshot);
+  const index = parseBoundedIntegerQuery(req.query.index, 'index', null, 0);
+  if (index === null) throw new AppError('需要定位序号。', { code: 'INVALID_SEARCH_INDEX', statusCode: 400 });
+  const owner = searchOwner(req);
+  res.json(createApiSuccessResponse(sessionMessageSearchService.window(owner, sessionId, snapshot, index)));
+}));
 
 router.get(
   '/sessions/:sessionId/messages',

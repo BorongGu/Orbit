@@ -26,7 +26,7 @@ async function withProviderServer(
   await writeFile(process.env.DATABASE_PATH, '');
   await initializeDatabase();
 
-  const app = express().use(express.json()).use('/api/providers', providerRouter);
+  const app = express().use(express.json()).use((req, _res, next) => { Object.assign(req, { user: { id: 1 } });next(); }).use('/api/providers', providerRouter);
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (error instanceof AppError) {
       res.status(error.statusCode).json({
@@ -582,5 +582,30 @@ test('usage route validates provider and session queries before reading account 
       assert.equal(response.status, 400);
     }
     assert.equal((await fetch(`${baseUrl}/api/providers/usage?sessionId=missing`)).status, 404);
+  });
+});
+
+
+test('session history search validates queries and navigates a bounded snapshot window', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('search-route', 'codex', workspacePath);
+    sessionsDb.assignProviderSessionId('search-route', 'native-search-route');
+    const sessions = providerRegistry.resolveProvider('codex').sessions;
+    const original = sessions.fetchHistory;
+    sessions.fetchHistory = async () => ({ messages: Array.from({ length: 100 }, (_, index) => ({ id: String(index), sessionId: 'search-route', provider: 'codex' as const, kind: 'text' as const, role: 'assistant' as const, timestamp: '2026-01-01T00:00:00Z', content: `Searchable reply ${index}` })), total: 100, offset: 0, limit: null, hasMore: false });
+    try {
+      const url = baseUrl + '/api/providers/sessions/search-route/messages/';
+      assert.equal((await fetch(url + 'search?q=')).status, 400);
+      assert.equal((await fetch(url + 'search?q=x&offset=-1')).status, 400);
+      const response = await fetch(url + 'search?q=Searchable');
+      assert.equal(response.status, 200);
+      const {data} = await response.json() as any;
+      assert.equal(data.total, 100);assert.equal(data.hits.length, 40);
+      const target = await fetch(url + `window?snapshot=${data.snapshot}&index=42`);
+      const view = (await target.json() as any).data;
+      assert.equal(target.status, 200);assert.equal(view.messages.length, 31);
+      assert.equal(view.messages[42 - view.start].id, '42');
+      assert.equal((await fetch(url + `window?snapshot=${data.snapshot}&index=999`)).status, 400);
+    } finally { sessions.fetchHistory = original; }
   });
 });

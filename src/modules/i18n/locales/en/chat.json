@@ -482,7 +482,16 @@
     "sharing": "Preparing and sending new BTW context…",
     "shared": "Attached to the parent session for its next turn.",
     "resize": "Resize window: {{direction}}",
-    "resizeDirection": { "n": "top edge", "s": "bottom edge", "w": "left edge", "e": "right edge", "nw": "top left corner", "ne": "top right corner", "sw": "bottom left corner", "se": "bottom right corner" },
+    "resizeDirection": {
+      "n": "top edge",
+      "s": "bottom edge",
+      "w": "left edge",
+      "e": "right edge",
+      "nw": "top left corner",
+      "ne": "top right corner",
+      "sw": "bottom left corner",
+      "se": "bottom right corner"
+    },
     "input": "Side question",
     "placeholder": "Ask a side question…",
     "send": "Send side question",
@@ -500,5 +509,27 @@
       "retrying": "Retrying model connection…",
       "reconnecting": "Reconnecting side conversation…"
     }
+  },
+  "historySearch": {
+    "title": "Search this conversation",
+    "placeholder": "Search conversation history…",
+    "refresh": "Refresh history",
+    "close": "Close search",
+    "searching": "Searching…",
+    "jumping": "Locating…",
+    "count": "{{count}} matching messages",
+    "hint": "Search the full conversation · Enter to locate",
+    "hideResults": "Hide results",
+    "showResults": "Show results",
+    "back": "Back to latest",
+    "results": "Search results",
+    "user": "You",
+    "assistant": "Assistant",
+    "previous": "Previous results",
+    "next": "Next results",
+    "position": "Historical dialogue {{index}} / {{total}}",
+    "earlier": "Earlier context",
+    "later": "Later context",
+    "shortcut": "Search this conversation (Ctrl/⌘ F)"
   }
 }

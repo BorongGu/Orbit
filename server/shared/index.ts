@@ -9,3 +9,5 @@ export type { ContextRecord, ContextSnapshot, ContextScope, ContextBriefing, Con
 export type { IProvider } from './interfaces.js';
 export type { OutputNote, OutputNoteGroup, OutputNoteFilter, NoteSessionContext } from './types.js';
 export type { ContextRequest, ContextRequestInput } from './types.js';
+
+export type { SessionMessageSearchHit, SessionMessageSearchPage, SessionMessageWindow } from './types.js';

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { memo, useCallback, useMemo } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, Search } from 'lucide-react';
 
 import type { BackgroundTaskSummary,
   ChatMessage,
@@ -28,6 +28,7 @@ import { BackgroundTasksStrip } from '@/modules/chat/transcript/BackgroundTasksS
 const INITIAL_MOUNTED_TAIL_ROWS = 30;
 
 type ChatMessagesPaneProps = {
+  onSearchHistory?: () => void;
   isReading?: boolean;
   readingPageOnly?: boolean;
   onToggleReading?: () => void;
@@ -89,6 +90,7 @@ const getGroupedMessageKey = (message: ChatMessage): string =>
  * list and tool groups, the export menu and the provider empty state.
  */
 function ChatMessagesPane({
+  onSearchHistory,
   isReading = false,
   readingPageOnly = false,
   onToggleReading,
@@ -189,6 +191,10 @@ function ChatMessagesPane({
             />
           </div>
           <div className="pointer-events-auto ml-auto flex items-center gap-2 pr-4 sm:pr-0">
+            {onSearchHistory && <button type="button" onClick={onSearchHistory} aria-label={t('historySearch.title')} title={t('historySearch.shortcut')} aria-keyshortcuts="Control+f Meta+f"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/50 bg-background/90 text-muted-foreground shadow-sm hover:bg-accent hover:text-foreground">
+              <Search className="h-4 w-4" aria-hidden />
+            </button>}
             {readingPageOnly && <span role="status" className="rounded-lg bg-background/90 px-2 py-1 text-xs text-muted-foreground">{t('reading.pageOnly')}</span>}
             {onToggleReading && <button type="button" data-reading-toggle onClick={onToggleReading}
               aria-label={t(isReading ? 'reading.exit' : 'reading.enter')}

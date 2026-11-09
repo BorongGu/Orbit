@@ -39,6 +39,9 @@ import { ContextTransferDialog } from '@/modules/context-transfer';
 import { NoteContextBanner, NotesDialog, SelectionNoteAction } from '@/modules/notes';
 import type { ContextTransferCommand } from '@/shared/types';
 import '@/modules/chat/reading-mode.css';
+import { useSessionHistorySearch } from '@/modules/chat/hooks/useSessionHistorySearch';
+import { SessionHistorySearchBar } from '@/modules/chat/transcript/SessionHistorySearchBar';
+import { SessionSearchWindow } from '@/modules/chat/transcript/SessionSearchWindow';
 
 type ChatInterfaceProps = {
   /** Groups exposes the complete transcript and approvals, with public messaging in its own composer. */
@@ -198,6 +201,29 @@ function ChatInterface({
     lastSeqRef,
     sessionStore,
   });
+
+  const historySearch = useSessionHistorySearch(selectedSession?.id || currentSessionId);
+  const openHistorySearch = useCallback(() => historySearch.setOpen(true), [historySearch.setOpen]);
+  const closeHistorySearch = useCallback(() => {
+    const browsing = Boolean(historySearch.view);
+    historySearch.close();
+    if (browsing) requestAnimationFrame(scrollToBottomAndReset);
+  }, [historySearch.close, historySearch.view, scrollToBottomAndReset]);
+  const returnFromHistorySearch = useCallback(() => {
+    historySearch.returnToChat();requestAnimationFrame(scrollToBottomAndReset);
+  }, [historySearch.returnToChat, scrollToBottomAndReset]);
+  useEffect(() => {
+    if (!isActive || !(selectedSession?.id || currentSessionId)) return;
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f' && !event.altKey
+        && !(event.target as Element)?.closest?.('[role="dialog"]')) {
+        event.preventDefault();historySearch.setOpen(true);
+        readingSurfaceRef.current?.querySelector<HTMLInputElement>('[data-history-search] input')?.select();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isActive, selectedSession?.id, currentSessionId, historySearch.setOpen]);
 
   const readingSurfaceRef = useRef<HTMLDivElement>(null);
   const reading = useChatReadingMode(readingSurfaceRef, scrollContainerRef, isActive, selectedSession?.id || currentSessionId);
@@ -534,7 +560,14 @@ function ChatInterface({
       <div ref={readingSurfaceRef} className="chat-reading-surface flex h-full min-h-0 flex-col" data-chat-reading-mode={reading.isReading ? 'true' : undefined}>
         <MarkdownWorkspaceContext.Provider value={markdownWorkspaceValue}>
           <TranscriptSessionContext.Provider value={transcriptSessionValue}>
+            <SessionHistorySearchBar search={{ ...historySearch, close: closeHistorySearch, returnToChat: returnFromHistorySearch }} />
+            {historySearch.view && <SessionSearchWindow view={historySearch.view} onPage={historySearch.jump} busy={historySearch.jumping}
+              createDiff={createDiff} onFileOpen={onFileOpen ? handleReadingFileOpen : undefined} onShowSettings={onShowSettings}
+              onGrantToolPermission={handleGrantToolPermission} showRawParameters={showRawParameters} showThinking={showThinking}
+              selectedProject={selectedProject} provider={provider} />}
+            <div className={historySearch.view ? 'hidden' : 'flex min-h-0 flex-1 flex-col'}>
             <ChatMessagesPane
+              onSearchHistory={openHistorySearch}
               isReading={reading.isReading}
               readingPageOnly={reading.pageOnly}
               onToggleReading={reading.toggle}
@@ -582,11 +615,12 @@ function ChatInterface({
               onForkFromMessage={!consoleOnly && supportsSessionForking && !reading.isReading ? handleForkFromMessage : undefined}
               onLoadFullTranscript={loadFullTranscript}
             />
+            </div>
           </TranscriptSessionContext.Provider>
         </MarkdownWorkspaceContext.Provider>
 
         <div className="relative flex-shrink-0">
-          {isUserScrolledUp && chatMessages.length > 0 && (
+          {!historySearch.view && isUserScrolledUp && chatMessages.length > 0 && (
             <div className="pointer-events-none absolute -top-11 left-0 right-0 z-20 flex justify-center">
               <button
                 type="button"

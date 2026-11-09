@@ -17,3 +17,6 @@
   padding-top: max(12px, env(safe-area-inset-top));
   padding-bottom: max(24px, env(safe-area-inset-bottom));
 }
+
+/* Native text ranges highlight a search hit without rewriting Markdown or formula DOM. */
+::highlight(session-search-hit) { background: hsl(var(--primary) / 24%); color: inherit; }

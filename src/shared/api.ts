@@ -1,3 +1,4 @@
+import type { SessionMessageSearchPage, SessionMessageWindow } from '@/shared/types';
 import {
   expireAuthSession,
   getStoredAuthToken,
@@ -154,6 +155,14 @@ async function moduleRequest<T>(endpoint: string, method = 'GET', body?: unknown
   return result.data as T;
 }
 const groupRequest = <T>(endpoint: string, method = 'GET', body?: unknown, signal?: AbortSignal) => moduleRequest<T>(`/api/groups${endpoint}`, method, body, signal);
+
+/** Current-session history search returns compact pages and bounded dialogue windows. */
+export const sessionHistorySearchApi = {
+  search: (id: string, q: string, offset = 0, snapshot?: string, signal?: AbortSignal) => moduleRequest<SessionMessageSearchPage>(
+    `/api/providers/sessions/${encodeURIComponent(id)}/messages/search${query({ q, offset, snapshot })}`, 'GET', undefined, signal),
+  window: (id: string, snapshot: string, index: number, signal?: AbortSignal) => moduleRequest<SessionMessageWindow>(
+    `/api/providers/sessions/${encodeURIComponent(id)}/messages/window${query({ snapshot, index })}`, 'GET', undefined, signal),
+};
 
 /** Notes stores selected output and seeds ordinary conversations without invoking a model. */
 export const notesApi = {
