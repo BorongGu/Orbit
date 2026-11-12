@@ -65,6 +65,7 @@ const renderWithSelectedSession = async () => {
     result.current.handleSessionSelect({ ...session, __projectId: 'project-1' });
   });
   assert.equal(result.current.selectedSession?.summary, 'Original title');
+  assert.equal(document.title, 'Original title');
 
   return result;
 };
@@ -92,6 +93,7 @@ test('a confirmed rename updates the selected session and its sidebar row in pla
   assert.equal(renamed, true);
   assert.deepEqual(renameSessionResponse.mock.calls, [['session-1', 'Renamed from header']]);
   assert.equal(result.current.selectedSession?.summary, 'Renamed from header');
+  assert.equal(document.title, 'Renamed from header');
   assert.deepEqual(
     result.current.projects[0].sessions?.map((row) => row.summary),
     ['Renamed from header', 'Untouched'],
@@ -116,6 +118,7 @@ test('a rename the backend refuses leaves both copies alone and reports false', 
   assert.equal(renamed, false);
   assert.equal(result.current.projects, projectsBefore);
   assert.equal(result.current.selectedSession, selectedBefore);
+  assert.equal(document.title, 'Original title');
   assert.equal(consoleError.mock.calls.length, 1);
 });
 
@@ -130,6 +133,7 @@ test('a blank title is rejected before any request is made', async () => {
   assert.equal(renamed, false);
   assert.equal(renameSessionResponse.mock.calls.length, 0);
   assert.equal(result.current.selectedSession?.summary, 'Original title');
+  assert.equal(document.title, 'Original title');
 });
 
 test('a rename leaves the one-shot search jump target behind', async () => {
@@ -171,5 +175,28 @@ test('renaming a session other than the selected one leaves the selection untouc
   });
 
   assert.equal(result.current.selectedSession, selectedBefore);
+  assert.equal(document.title, 'Original title');
   assert.equal(result.current.projects[0].sessions?.[1].summary, 'Other renamed');
+});
+
+
+test('the tab title follows selection and rename without mounting the sidebar project list', async () => {
+  renameSessionResponse.mockResolvedValue({ ok: true, json: async () => ({}) });
+  const result = await renderWithSelectedSession();
+  act(() => result.current.handleSessionSelect({ ...otherSession, __projectId: 'project-1' }));
+  assert.equal(document.title, 'Untouched');
+  await act(async () => { await result.current.renameSession('session-2', '新的自定义会话名'); });
+  assert.equal(document.title, '新的自定义会话名');
+  act(() => result.current.setActiveTab('files'));
+  assert.equal(document.title, '新的自定义会话名');
+});
+
+test('leaving the workspace restores the application title', async () => {
+  projectsResponse.mockResolvedValue({ ok: true, json: async () => [buildProject()] });
+  const hook = await renderProjectsState();
+  await waitFor(() => assert.equal(hook.result.current.projects.length, 1));
+  act(() => hook.result.current.handleSessionSelect({ ...session, __projectId: 'project-1' }));
+  assert.equal(document.title, 'Original title');
+  hook.unmount();
+  assert.equal(document.title, 'Orbit');
 });

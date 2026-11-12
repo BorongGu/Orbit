@@ -10,7 +10,7 @@ import type { ServerEvent,
   ProjectSession,IsSessionProcessing } from '@/shared/types';
 import { mergeProjectSelectionMetadata } from '@/modules/project-workspace/utils/projectSelectionMetadata';
 import { readSelectedProvider } from '@/shared/selectedProvider';
-import { markSessionCompletionRead, observeSessionCompletion } from '@/shared/utils';
+import { getPageTitle, markSessionCompletionRead, observeSessionCompletion } from '@/shared/utils';
 
 type UseProjectsStateArgs = {
   sessionId?: string;
@@ -391,6 +391,13 @@ export function useProjectsState({
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedSession, setSelectedSession] = useState<ProjectSession | null>(null);
+  // Workspace selection owns the tab title across sidebar modes and mobile drawer visibility.
+  const pageTitle = getPageTitle(selectedProject, selectedSession);
+  useEffect(() => {
+    document.title = pageTitle;
+    return () => { document.title = getPageTitle(null, null); };
+  }, [pageTitle]);
+
   // Only explicit errors and unanswered interactive requests need a sidebar reminder.
   const [attentionSessionIds, setAttentionSessionIds] = useState<Set<string>>(new Set());
   // Request ids let another device resolve one prompt while other pending prompts remain visible.
