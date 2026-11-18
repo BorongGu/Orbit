@@ -10,6 +10,28 @@ const require = createRequire(import.meta.url);
 const findCodexModel = (value: string) =>
   CODEX_PREDEFINED_MODELS.OPTIONS.find((option) => option.value === value);
 
+test('ships the current GPT-6.2 models and GPT-6.1 Sol with Codex reasoning efforts', () => {
+  for (const [value, label] of [
+    ['gpt-6.2-astra', 'GPT-6.2 Astra'],
+    ['gpt-6.2-sol', 'GPT-6.2 Sol'],
+    ['gpt-6.1-sol', 'GPT-6.1 Sol'],
+  ]) {
+    const model = findCodexModel(value);
+    assert.equal(model?.label, label);
+    assert.equal(model?.effort?.default, 'low');
+    assert.deepEqual(
+      model?.effort?.values.map((effort) => effort.value),
+      ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+    );
+    assert.equal(CODEX_PREDEFINED_MODELS.OPTIONS.filter((option) => option.value === value).length, 1);
+  }
+  assert.deepEqual(
+    CODEX_PREDEFINED_MODELS.OPTIONS.slice(0, 4).map((option) => option.value),
+    ['gpt-6.2-astra', 'gpt-6.2-sol', 'gpt-6.1-terra', 'gpt-6.1-sol'],
+  );
+  assert.equal(findCodexModel('gpt-6-astra')?.effort?.default, 'medium');
+});
+
 test('lists GPT-6 Sol and GPT-6 Luna with the effort levels the Codex CLI accepts', () => {
   const sol = findCodexModel('gpt-6-sol');
   assert.equal(sol?.label, 'GPT-6 Sol');

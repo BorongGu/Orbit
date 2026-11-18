@@ -15,9 +15,41 @@ import {
   readOptionalString,
 } from '@/shared/utils.js';
 
-/** Curated Codex catalog shipped as immutable CloudCLI defaults. */
+/** Codex defaults consumed by the Providers model service and its catalog tests. */
 export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
+    {
+      value: 'gpt-6.2-astra',
+      label: 'GPT-6.2 Astra',
+      description: 'Advanced reasoning for complex coding, research, and professional work.',
+      effort: {
+        default: 'low',
+        values: [
+          { value: 'low' },
+          { value: 'medium' },
+          { value: 'high' },
+          { value: 'xhigh' },
+          { value: 'max' },
+          { value: 'ultra' },
+        ],
+      },
+    },
+    {
+      value: 'gpt-6.2-sol',
+      label: 'GPT-6.2 Sol',
+      description: 'Efficient model for everyday coding, writing, and multistep workflows.',
+      effort: {
+        default: 'low',
+        values: [
+          { value: 'low' },
+          { value: 'medium' },
+          { value: 'high' },
+          { value: 'xhigh' },
+          { value: 'max' },
+          { value: 'ultra' },
+        ],
+      },
+    },
     {
       value: 'gpt-6.1-terra',
       label: 'GPT-6.1 Terra',
@@ -36,11 +68,27 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
       },
     },
     {
+      value: 'gpt-6.1-sol',
+      label: 'GPT-6.1 Sol',
+      description: 'Model for complex coding and repeated, long-running work.',
+      effort: {
+        default: 'low',
+        values: [
+          { value: 'low' },
+          { value: 'medium' },
+          { value: 'high' },
+          { value: 'xhigh' },
+          { value: 'max' },
+          { value: 'ultra' },
+        ],
+      },
+    },
+    {
       value: 'gpt-6-astra',
       label: 'GPT-6 Astra',
       description: 'Our most capable model for complex, demanding work.',
       effort: {
-        default: 'low',
+        default: 'medium',
         values: [
           { value: 'low' },
           { value: 'medium' },

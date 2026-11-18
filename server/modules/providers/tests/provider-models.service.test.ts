@@ -127,6 +127,7 @@ const createTestService = (options: {
   sessions?: ReturnType<typeof createSessionStore>;
   settings?: ReturnType<typeof createSettingsStore>;
   activeModel?: (provider: LLMProvider, sessionId?: string) => string;
+  models?: (provider: LLMProvider) => ProviderModelsDefinition;
   onCatalogRead?: (provider: LLMProvider) => void;
 } = {}) => {
   const catalog = options.catalog ?? createCatalogStore();
@@ -140,7 +141,7 @@ const createTestService = (options: {
       models: {
         getSupportedModels: async () => {
           options.onCatalogRead?.(provider);
-          return createModels(`${provider}-default`);
+          return options.models?.(provider) ?? createModels(`${provider}-default`);
         },
         getCurrentActiveModel: async (sessionId) => createCurrentActiveModel(
           options.activeModel?.(provider, sessionId) ?? `${provider}-default`,
@@ -166,6 +167,65 @@ test('provider catalogs merge source-controlled defaults with custom persistence
     isCustom: false,
   });
   assert.deepEqual(catalog.rows.get('codex'), undefined);
+});
+
+test('Codex orders built-in and custom GPT generations newest first while keeping its default', async () => {
+  const predefined: ProviderModelsDefinition = {
+    OPTIONS: ['gpt-5.6-sol', 'gpt-6.1-terra', 'gpt-6.2-astra'].map((value) => ({ value, label: value })),
+    DEFAULT: 'gpt-5.6-sol',
+  };
+  const { service } = createTestService({ models: () => predefined });
+  for (const id of ['gateway-first', 'gpt-6.10-sol', 'gpt-6.2-sol', 'gateway-second', 'gpt-6.1-sol']) {
+    await service.createCustomModel('codex', { id, model: id });
+  }
+
+  const models = await service.getProviderModels('codex');
+  assert.deepEqual(models.OPTIONS.map((option) => option.value), [
+    'gpt-6.10-sol', 'gpt-6.2-astra', 'gpt-6.2-sol', 'gpt-6.1-terra', 'gpt-6.1-sol',
+    'gpt-5.6-sol', 'gateway-first', 'gateway-second',
+  ]);
+  assert.equal(models.DEFAULT, 'gpt-5.6-sol');
+  assert.deepEqual(predefined.OPTIONS.map((option) => option.value), [
+    'gpt-5.6-sol', 'gpt-6.1-terra', 'gpt-6.2-astra',
+  ]);
+
+  const customOnly = await service.setCustomModelsOnly('codex', true);
+  assert.deepEqual(customOnly.OPTIONS.map((option) => option.value), [
+    'gpt-6.10-sol', 'gpt-6.2-sol', 'gpt-6.1-sol', 'gateway-first', 'gateway-second',
+  ]);
+  assert.equal(customOnly.DEFAULT, 'gateway-first');
+
+  const claude = await service.getProviderModels('claude');
+  assert.deepEqual(claude.OPTIONS.map((option) => option.value), predefined.OPTIONS.map((option) => option.value));
+});
+
+test('a catalog upgrade preserves an existing custom model once and keeps it editable', async () => {
+  const predefined = createModels('codex-default');
+  const { service, catalog } = createTestService({ models: () => predefined });
+  const created = await service.createCustomModel('codex', {
+    id: 'gpt-6.2-astra', model: 'My Astra', effort: { values: ['high'], default: 'high' },
+  });
+  predefined.OPTIONS.push({ value: 'gpt-6.2-astra', label: 'GPT-6.2 Astra' });
+
+  const models = await service.getProviderModels('codex');
+  assert.equal(models.OPTIONS.filter((option) => option.value === 'gpt-6.2-astra').length, 1);
+  assert.deepEqual(models.OPTIONS[0], created.model);
+  const recordId = created.model.recordId as number;
+  const updated = await service.updateCustomModel('codex', recordId, {
+    id: 'gpt-6.2-astra', model: 'My updated Astra',
+  });
+  assert.equal(updated.model.label, 'My updated Astra');
+  assert.deepEqual(updated.model.effort, created.model.effort);
+  await assert.rejects(
+    () => service.updateCustomModel('codex', recordId, { id: 'codex-default', model: 'Duplicate' }),
+    (error) => error instanceof AppError && error.code === 'MODEL_ID_ALREADY_EXISTS',
+  );
+
+  const removed = await service.deleteCustomModel('codex', recordId);
+  assert.deepEqual(catalog.deleteFallbacks, ['gpt-6.2-astra']);
+  assert.deepEqual(removed.models.OPTIONS[0], {
+    value: 'gpt-6.2-astra', label: 'GPT-6.2 Astra', isCustom: false,
+  });
 });
 
 test('the custom-models-only flag is off by default and leaves the merged catalog unchanged', async () => {

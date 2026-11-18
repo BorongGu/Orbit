@@ -89,14 +89,29 @@ const readCustomModelEffortLevels = (provider: LLMProvider): string[] => (
   providerCapabilitiesService.getProviderCapabilities(provider).effortLevels
 );
 
+/** Orders Codex GPT generations numerically; ties retain the catalog's order. */
+const compareCodexModelVersions = (left: ProviderModelOption, right: ProviderModelOption): number => {
+  const leftVersion = /^gpt-(\d+(?:\.\d+)*)(?:-|$)/.exec(left.value)?.[1].split('.').map(Number);
+  const rightVersion = /^gpt-(\d+(?:\.\d+)*)(?:-|$)/.exec(right.value)?.[1].split('.').map(Number);
+  if (!leftVersion || !rightVersion) {
+    return Number(Boolean(rightVersion)) - Number(Boolean(leftVersion));
+  }
+  for (let index = 0; index < Math.max(leftVersion.length, rightVersion.length); index++) {
+    const difference = (rightVersion[index] ?? 0) - (leftVersion[index] ?? 0);
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+  return 0;
+};
+
 /**
  * Builds the catalog every picker, command, and runtime reads.
  *
- * Built-in models come first, then custom ones. With `customModelsOnly` set the
- * built-ins are left out and the first custom model becomes the default, so a
- * provider pointed at a gateway lists only what that gateway serves. The flag
- * only applies while at least one custom model exists: an empty catalog would
- * leave the composer and the runtimes with no model at all.
+ * Existing custom rows take precedence when an upgrade adds their IDs to the
+ * built-ins. Codex GPT models sort by generation, newest first. Other catalogs
+ * retain built-in order followed by custom order. With `customModelsOnly` set,
+ * a populated custom catalog supplies both the options and the default.
  */
 const mergeProviderModels = (
   provider: LLMProvider,
@@ -106,14 +121,20 @@ const mergeProviderModels = (
 ): ProviderModelsDefinition => {
   const customOptions = custom.map(toCustomProviderModelOption);
   const listOnlyCustomModels = customModelsOnly && customOptions.length > 0;
+  const customById = new Map(customOptions.map((option) => [option.value, option]));
+  const predefinedIds = new Set(predefined.OPTIONS.map((option) => option.value));
+  const options = listOnlyCustomModels
+    ? customOptions
+    : [
+      ...predefined.OPTIONS.map((option) => customById.get(option.value) ?? { ...option, isCustom: false }),
+      ...customOptions.filter((option) => !predefinedIds.has(option.value)),
+    ];
+  if (provider === 'codex') {
+    options.sort(compareCodexModelVersions);
+  }
   return {
-    OPTIONS: listOnlyCustomModels
-      ? customOptions
-      : [
-        ...predefined.OPTIONS.map((option) => ({ ...option, isCustom: false })),
-        ...customOptions,
-      ],
-    DEFAULT: listOnlyCustomModels ? customOptions[0].value : predefined.DEFAULT,
+    OPTIONS: options,
+    DEFAULT: listOnlyCustomModels ? custom[0].modelId : predefined.DEFAULT,
     // Copied so no caller can mutate the shared capability matrix.
     EFFORT_LEVELS: [...readCustomModelEffortLevels(provider)],
     CUSTOM_MODELS_ONLY: customModelsOnly,
@@ -238,14 +259,16 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     modelId: string,
     currentRecordId?: number,
   ): void => {
-    if (predefined.OPTIONS.some((option) => option.value === modelId)) {
+    const duplicate = catalog.findCustomProviderModelByModelId(provider, modelId);
+    // A custom row remains editable after its model becomes a shipped default.
+    const updatesExistingId = currentRecordId !== undefined && duplicate?.recordId === currentRecordId;
+    if (predefined.OPTIONS.some((option) => option.value === modelId) && !updatesExistingId) {
       throw new AppError(`A ${provider} model with this ID already exists.`, {
         code: 'MODEL_ID_ALREADY_EXISTS',
         statusCode: 409,
       });
     }
 
-    const duplicate = catalog.findCustomProviderModelByModelId(provider, modelId);
     if (duplicate && duplicate.recordId !== currentRecordId) {
       throw new AppError(`A ${provider} model with this ID already exists.`, {
         code: 'MODEL_ID_ALREADY_EXISTS',
@@ -320,16 +343,17 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     recordId: number,
   ): Promise<{ model: ProviderModelOption; models: ProviderModelsDefinition }> => {
     const predefined = await resolveProvider(provider).models.getSupportedModels();
-    readCustomModel(provider, recordId);
-    // Sessions on the deleted model move to the default of the catalog left
-    // behind: the first remaining custom model (the new DEFAULT) while only
-    // custom models are listed, or the built-in default once none remain.
-    const fallbackModelId = mergeProviderModels(
+    const existing = readCustomModel(provider, recordId);
+    const remaining = mergeProviderModels(
       provider,
       predefined,
       catalog.listCustomProviderModels(provider).filter((record) => record.recordId !== recordId),
       isCustomModelsOnly(provider),
-    ).DEFAULT;
+    );
+    // A shipped model with the same ID keeps existing sessions on that model.
+    const fallbackModelId = remaining.OPTIONS.some((option) => option.value === existing.modelId)
+      ? existing.modelId
+      : remaining.DEFAULT;
     const removed = catalog.deleteCustomProviderModel(provider, recordId, fallbackModelId);
     if (!removed) {
       throw new AppError('Model not found.', {
