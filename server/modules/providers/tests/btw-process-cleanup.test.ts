@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -15,6 +15,50 @@ function running(pid: number): boolean {
     process.kill(pid, 0);return true;
   } catch { return false; }
 }
+
+test('Codex BTW uses the managed daemon executable before PATH and honors the explicit override', { skip: process.platform === 'win32' }, async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'orbit-btw-binary-test-'));
+  const managed = path.join(directory, 'packages', 'app-server-daemon', 'current', 'bin', 'codex');
+  const pathBinary = path.join(directory, 'codex');
+  const override = path.join(directory, 'override');
+  const previous = { CODEX_HOME: process.env.CODEX_HOME, CODEX_BTW_BIN: process.env.CODEX_BTW_BIN, PATH: process.env.PATH };
+  await mkdir(path.dirname(managed), { recursive: true });
+  try {
+    for (const [binary, label] of [[managed, 'managed'], [pathBinary, 'path'], [override, 'override']]) {
+      await writeFile(binary, `#!${process.execPath}
+const readline = require('node:readline');
+readline.createInterface({ input: process.stdin }).on('line', line => {
+  const { id } = JSON.parse(line);
+  if (id !== undefined) console.log(JSON.stringify({ id, result: ${JSON.stringify(label)} }));
+});
+`, { mode: 0o700 });
+    }
+    process.env.CODEX_HOME = directory;
+    process.env.PATH = `${directory}${path.delimiter}${previous.PATH || ''}`;
+    delete process.env.CODEX_BTW_BIN;
+
+    async function probe(expected: string) {
+      const client = new CodexBtwConnection();
+      try {
+        await client.initialize();
+        assert.equal(await client.call('model/list', {}), expected);
+      } finally { await client.close(); }
+    }
+
+    await probe('managed');
+    process.env.CODEX_BTW_BIN = override;
+    await probe('override');
+    delete process.env.CODEX_BTW_BIN;
+    await chmod(managed, 0o600);
+    await probe('path');
+  } finally {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 for (const provider of ['codex', 'opencode'] as const) test(`${provider} close reaps a tool that outlives its direct parent`, { skip: process.platform === 'win32', timeout: 15000 }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'orbit-btw-cleanup-test-'));

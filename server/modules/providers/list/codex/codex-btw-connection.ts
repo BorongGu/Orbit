@@ -1,8 +1,27 @@
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { accessSync, constants } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import readline from 'node:readline';
 
 import { terminateOwnedProcessGroup } from '@/shared/index.js';
+
+function resolveBtwBinary(): string {
+  if (process.env.CODEX_BTW_BIN) return process.env.CODEX_BTW_BIN;
+
+  // The managed daemon can update ahead of the CLI on PATH. Run the isolated
+  // fork with the managed package so it gets the same model and compaction support.
+  const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
+  const executable = process.platform === 'win32' ? 'codex.exe' : 'codex';
+  const managed = path.resolve(codexHome, 'packages', 'app-server-daemon', 'current', 'bin', executable);
+  try {
+    accessSync(managed, constants.X_OK);
+    return managed;
+  } catch {
+    return 'codex';
+  }
+}
 
 /** Used by the BTW service: each window owns an app-server and its in-memory fork. */
 export class CodexBtwConnection extends EventEmitter {
@@ -19,7 +38,7 @@ export class CodexBtwConnection extends EventEmitter {
     timer: ReturnType<typeof setTimeout>;
   }>();
 
-  constructor(binary = process.env.CODEX_BTW_BIN || 'codex') {
+  constructor(binary = resolveBtwBinary()) {
     super();
     // A dedicated process group lets close also reap tools started by this fork.
     this.child = spawn(binary, ['app-server'], {
